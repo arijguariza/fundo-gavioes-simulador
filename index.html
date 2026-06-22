@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0c0d09">
+<title>Fundo Gaviões · Simulador</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="app-m">
+
+  <header class="m-header">
+    <div class="m-header-row">
+      <div class="m-brand"><span class="mk">Gaviões</span><span class="dot">·</span><span class="mk-sub">Fundo</span></div>
+      <button class="m-reset" id="btn-reset-sim" aria-label="Reiniciar simulação">↺</button>
+    </div>
+    <div class="m-ticker" id="m-ticker"></div>
+  </header>
+
+  <main class="m-content" id="m-content">
+
+    <!-- PORTAL DO FUNCIONÁRIO (HOME) -->
+    <section class="view" data-view="portal">
+      <div class="m-view-head">
+        <span class="eyebrow">Sua Conta no Fundo</span>
+        <h1>Minhas Cotas</h1>
+      </div>
+      <button class="switch-pill" id="portal-switch">
+        <span id="portal-switch-label">Ver como…</span><span class="chev">▾</span>
+      </button>
+      <div id="portal-body"></div>
+    </section>
+
+    <!-- VISÃO GERAL DO FUNDO -->
+    <section class="view hidden" data-view="overview">
+      <div class="m-view-head">
+        <span class="eyebrow">Painel do Administrador</span>
+        <h1>Visão Geral do Fundo</h1>
+        <p class="desc">Fotografia do fundo no mês atual — participação de 10% na academia, patrimônio e distribuição de cotas.</p>
+      </div>
+      <div class="kpi-stack" id="overview-kpis"></div>
+      <div class="m-card">
+        <div class="panel-title"><h2>Evolução do Valor da Cota</h2><span class="meta" id="overview-chart-meta"></span></div>
+        <div id="overview-chart"></div>
+      </div>
+      <div class="m-card">
+        <div class="panel-title"><h2>Propriedade do Fundo</h2></div>
+        <div id="overview-donut"></div>
+      </div>
+      <div class="m-card">
+        <div class="panel-title"><h2>Cotas por Área</h2><span class="meta">toque para filtrar</span></div>
+        <div id="overview-areas"></div>
+      </div>
+      <div class="m-card" style="padding-bottom:6px;">
+        <div class="panel-title"><h2>Atividade Recente</h2></div>
+        <div id="overview-activity"></div>
+      </div>
+    </section>
+
+    <!-- CICLO MENSAL -->
+    <section class="view hidden" data-view="ciclo">
+      <div class="m-view-head">
+        <span class="eyebrow">Fluxo Operacional</span>
+        <h1>Ciclo Mensal</h1>
+        <p class="desc">Líderes distribuem cotas, o comitê aprova, o comunicado é gerado e os dividendos são calculados.</p>
+      </div>
+      <div class="stepper-m" id="ciclo-stepper"></div>
+      <div id="ciclo-body"></div>
+    </section>
+
+    <!-- COTISTAS -->
+    <section class="view hidden" data-view="cotistas">
+      <div class="m-view-head">
+        <span class="eyebrow">Cadastro Fictício</span>
+        <h1>Cotistas</h1>
+        <button class="btn primary full" id="btn-novo-cotista">+ Novo Cotista Fictício</button>
+      </div>
+      <div class="unit-filter" id="cotistas-filter"></div>
+      <div id="cotistas-list"></div>
+    </section>
+
+    <!-- EVOLUÇÃO -->
+    <section class="view hidden" data-view="evolucao">
+      <div class="m-view-head">
+        <span class="eyebrow">Projeção</span>
+        <h1>Evolução · 10 Anos</h1>
+        <p class="desc">Valuation, participação do fundo e valor da cota, ano a ano, a partir dos parâmetros configurados.</p>
+      </div>
+      <div class="m-card">
+        <div id="evolucao-chart"></div>
+      </div>
+      <div id="evolucao-list"></div>
+    </section>
+
+    <!-- SAÍDA & RECOMPRA -->
+    <section class="view hidden" data-view="saida">
+      <div class="m-view-head">
+        <span class="eyebrow">Simulador de Cenário</span>
+        <h1>Saída &amp; Recompra</h1>
+        <p class="desc">Simule a saída de um cotista: o fundo recompra suas cotas pelo valor de mercado, sem regra de carência.</p>
+      </div>
+      <button class="switch-pill" id="saida-switch">
+        <span id="saida-switch-label">Selecionar cotista…</span><span class="chev">▾</span>
+      </button>
+      <div id="saida-body"></div>
+    </section>
+
+    <!-- CONFIGURAÇÃO -->
+    <section class="view hidden" data-view="config">
+      <div class="m-view-head">
+        <span class="eyebrow">Parâmetros</span>
+        <h1>Configuração do Fundo</h1>
+        <p class="desc">Esses números definem o valuation, a participação e os custos. Alterar recalcula tudo.</p>
+      </div>
+      <div class="m-card">
+        <h3>Valuation da Academia</h3>
+        <div class="field"><label>Lucro mensal projetado (R$)</label><input type="number" id="cfg-lucroMensal" step="1000"></div>
+        <div class="field"><label>Múltiplo de mercado (x)</label><input type="number" id="cfg-multiplo" step="0.5"></div>
+        <div class="field"><label>Custo de abertura (R$, informativo)</label><input type="number" id="cfg-custoAbertura" step="50000"></div>
+        <div class="field"><label>Crescimento anual da academia (%)</label><input type="number" id="cfg-crescimento" step="0.5"></div>
+        <p class="hint" id="cfg-valuation-out"></p>
+      </div>
+      <div class="m-card">
+        <h3>Estrutura de Cotas</h3>
+        <div class="field"><label>Participação do fundo (%)</label><input type="number" id="cfg-participacao" step="1"></div>
+        <div class="field"><label>Total de cotas emitidas</label><input type="number" id="cfg-totalCotas" step="100"></div>
+        <p class="hint" id="cfg-cota-out"></p>
+      </div>
+      <div class="m-card">
+        <h3>Custos Anuais</h3>
+        <div class="field"><label>Taxa de administração (% a.a.)</label><input type="number" id="cfg-taxaAdm" step="0.1"></div>
+        <div class="field"><label>Auditoria independente (R$/ano)</label><input type="number" id="cfg-auditoria" step="500"></div>
+        <p class="hint" id="cfg-custo-out"></p>
+      </div>
+      <div class="m-card">
+        <h3>Regras de Distribuição</h3>
+        <div class="field"><label>Cotas de bonificação por líder / mês</label><input type="number" id="cfg-cotasLider" step="1"></div>
+        <div class="field"><label>Limite de compra por funcionário / mês</label><input type="number" id="cfg-limiteCompra" step="1"></div>
+        <div class="field"><label>IRRF sobre ganho de capital (%)</label><input type="number" id="cfg-irrf" step="1"></div>
+      </div>
+      <button class="btn primary full" id="cfg-aplicar">Aplicar e Recalcular</button>
+      <button class="btn ghost full" id="cfg-padrao" style="margin-top:10px;">Restaurar Padrões</button>
+    </section>
+
+    <!-- O QUE É UM FIP -->
+    <section class="view hidden" data-view="fip">
+      <div class="m-view-head">
+        <span class="eyebrow">Para Qualquer Pessoa Entender</span>
+        <h1>O Que É um FIP?</h1>
+        <p class="desc">Sem economês. Ao final desta página você entende como o dinheiro flui da academia até o seu bolso.</p>
+      </div>
+
+      <div class="m-card">
+        <h3 style="margin-bottom:14px;">Em uma frase</h3>
+        <p style="font-size:14.5px; line-height:1.7; color:var(--ink);">
+          A academia separou <strong>10% dela</strong> pra dividir com quem trabalha lá. Esse pedaço fica guardado num
+          <strong>fundo</strong>, dividido em <strong>cotas</strong>. Cada funcionário recebe ou compra cotas — e o valor
+          delas sobe conforme a academia cresce e lucra.
+        </p>
+      </div>
+
+      <div class="m-card">
+        <h3 style="margin-bottom:16px;">Como o dinheiro chega até você</h3>
+        <div class="flow">
+          <div class="flow-step"><span class="flow-n">1</span><div><strong>Academia fatura e lucra</strong><p>Mensalidades, aulas, serviços — depois de pagar as contas, sobra lucro.</p></div></div>
+          <div class="flow-step"><span class="flow-n">2</span><div><strong>Fundo recebe sua fatia</strong><p>10% desse lucro entra no fundo automaticamente, todo mês.</p></div></div>
+          <div class="flow-step"><span class="flow-n">3</span><div><strong>Fundo paga seus próprios custos</strong><p>Administração, auditoria e custódia — uma fração pequena, descontada antes da divisão.</p></div></div>
+          <div class="flow-step"><span class="flow-n">4</span><div><strong>O que resta é dividido</strong><p>Proporcional à quantidade de cotas de cada cotista. Mais cotas, mais dividendo.</p></div></div>
+          <div class="flow-step last"><span class="flow-n">5</span><div><strong>Você recebe</strong><p>Em dinheiro (dividendo) ou em valorização das suas cotas, que você pode vender depois.</p></div></div>
+        </div>
+      </div>
+
+      <div class="accordion" id="fip-accordion">
+        <div class="acc-item open">
+          <button class="acc-head">O que é um fundo de investimento? <span class="acc-ico">−</span></button>
+          <div class="acc-body">
+            <p>Pensa numa caixa coletiva. Várias pessoas colocam dinheiro (ou, no nosso caso, recebem participação como bonificação) e essa caixa investe num único ativo — aqui, uma fatia da academia. Quem tem direito a essa caixa são os <strong>cotistas</strong>, e a "caixa" inteira é dividida em pedacinhos chamados <strong>cotas</strong>.</p>
+          </div>
+        </div>
+        <div class="acc-item">
+          <button class="acc-head">O que é uma cota e um cotista? <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p><strong>Cota</strong> é a unidade de propriedade do fundo — como uma fatia de bolo. <strong>Cotista</strong> é quem possui uma ou mais fatias. Você não compra "ações da academia" diretamente; você compra cotas do fundo, e o fundo é quem tem a participação na academia.</p>
+          </div>
+        </div>
+        <div class="acc-item">
+          <button class="acc-head">Por que FIP, e não outro tipo de fundo? <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p><strong>FIP</strong> significa Fundo de Investimento em Participações — feito justamente pra investir em participação de empresas que não estão na bolsa, exatamente o caso da academia. Três motivos pra esse formato:</p>
+            <ul>
+              <li><strong>Fechado:</strong> só funcionários participam, não é vendido pro público em geral.</li>
+              <li><strong>Tributação favorável:</strong> dividendos chegam isentos de imposto de renda pra pessoa física.</li>
+              <li><strong>Sob medida:</strong> a regulação de FIP foi desenhada pra esse tipo de participação societária, diferente de fundos genéricos.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="acc-item">
+          <button class="acc-head">E se eu sair da empresa? <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p>Não existe período de carência. Suas cotas são 100% suas desde o dia em que você as recebeu ou comprou, não importa há quanto tempo você está na empresa. Se você sair, a empresa simplesmente <strong>recompra suas cotas pelo valor de mercado</strong> do momento — como vender uma cota pra qualquer outro comprador. Sobre o ganho (se houver), incide o IRRF normal de ganho de capital. Simule isso na aba <strong>Saída & Recompra</strong>.</p>
+          </div>
+        </div>
+        <div class="acc-item">
+          <button class="acc-head">Glossário rápido <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <dl class="glossario">
+              <dt>Cota</dt><dd>Unidade de propriedade do fundo.</dd>
+              <dt>Cotista</dt><dd>Pessoa que possui cotas.</dd>
+              <dt>Patrimônio líquido</dt><dd>Valor total do fundo, já descontando custos.</dd>
+              <dt>Valuation</dt><dd>Quanto a academia vale no papel, hoje.</dd>
+              <dt>Recompra</dt><dd>Empresa compra de volta as cotas de quem saiu, pelo valor de mercado.</dd>
+              <dt>Dividendo</dt><dd>Parte do lucro distribuída aos cotistas.</dd>
+              <dt>CVM</dt><dd>Órgão que regula e fiscaliza fundos no Brasil.</dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+      <p class="hint" style="text-align:center; margin:18px 0 4px;">Valores deste resumo são ilustrativos — os números reais do fundo estão nas abas Fundo e Configuração.</p>
+    </section>
+
+  </main>
+
+  <nav class="bottom-nav" id="bottom-nav">
+    <button data-view="portal" class="active">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6"/></svg>
+      <span>Eu</span>
+    </button>
+    <button data-view="overview">
+      <svg viewBox="0 0 24 24"><path d="M4 10 12 4l8 6"/><path d="M5 10v9h14v-9"/><path d="M10 19v-5h4v5"/></svg>
+      <span>Fundo</span>
+    </button>
+    <button data-view="ciclo">
+      <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.6 5.7L4 16"/><path d="M4 20v-4h4"/></svg>
+      <span>Ciclo</span>
+    </button>
+    <button data-view="cotistas">
+      <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 19c.5-3.5 3-5.5 6-5.5s5.5 2 6 5.5"/><circle cx="17" cy="9" r="2.2"/><path d="M16 13.3c2.2.3 3.7 1.9 4 4.7"/></svg>
+      <span>Cotistas</span>
+    </button>
+    <button id="btn-mais" data-sheet="true">
+      <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+      <span>Mais</span>
+    </button>
+  </nav>
+
+</div>
+
+<div id="sheet-root"></div>
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
