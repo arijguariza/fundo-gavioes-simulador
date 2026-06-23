@@ -450,6 +450,7 @@ function renderPortal() {
       <div class="lbl">Suas cotas valem hoje</div>
       <div class="big">${fmtBRL0(valorAtual)}</div>
       <div class="sub">${fmtNum(c.cotas)} cotas (${fmtNum(c.cotasBonificadas)} bônus + ${fmtNum(c.cotasCompradas)} compradas) × ${fmtBRL(valorCotaAtual)}</div>
+      <div class="rendimento-pill">+ ${fmtBRL0(totalDividendos)} em dividendos recebidos até hoje</div>
     </div>
 
     <div class="stat-grid">
