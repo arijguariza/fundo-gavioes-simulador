@@ -4,7 +4,7 @@
    Tudo em memória / localStorage.
    ============================================================ */
 
-const STORAGE_KEY = 'gavioes_fundo_sim_v11';
+const STORAGE_KEY = 'gavioes_fundo_sim_v12';
 const HORIZON_MESES = 480; // 40 anos de estados pré-computados
 
 const DEFAULT_CONFIG = {
@@ -68,6 +68,11 @@ const NOMES_BASE = ['Ana', 'Bruno', 'Camila', 'Diego', 'Elaine', 'Fábio', 'Gabr
   'Úrsula', 'Victor', 'Wesley', 'Yasmin', 'Zélia', 'André', 'Beatriz', 'Caio', 'Daniela', 'Eduardo',
   'Fernanda', 'Gustavo', 'Helena', 'Igor', 'Júlia', 'Kevin', 'Larissa', 'Marcelo', 'Natália', 'Otávio',
   'Renata', 'Renato', 'Sofia', 'Tatiane', 'Vinícius', 'Wagner', 'Ximena', 'Yago', 'Zeca', 'Aline'];
+const GENEROS_BASE = ['F', 'M', 'F', 'M', 'F', 'M', 'F', 'M', 'F', 'M',
+  'F', 'M', 'F', 'M', 'F', 'M', 'F', 'M', 'F', 'M',
+  'F', 'M', 'M', 'F', 'F', 'M', 'F', 'M', 'F', 'M',
+  'F', 'M', 'F', 'M', 'F', 'M', 'F', 'M', 'F', 'M',
+  'F', 'M', 'F', 'F', 'M', 'M', 'F', 'M', 'M', 'F'];
 const SOBRENOMES_BASE = ['Almeida', 'Barros', 'Costa', 'Duarte', 'Esteves', 'Ferreira', 'Gonçalves', 'Henriques',
   'Inácio', 'Junqueira', 'Karam', 'Lacerda', 'Martins', 'Nogueira', 'Oliveira', 'Pereira', 'Queiroz', 'Ramos',
   'Souza', 'Teixeira', 'Uchoa', 'Vieira', 'Werneck', 'Ximenes', 'Zanetti', 'Andrade', 'Bezerra', 'Cardoso',
@@ -96,9 +101,13 @@ function nomeColaborador(i) {
   return `${primeiro} ${sobrenome1} ${sobrenome2}`;
 }
 
+function generoColaborador(i) {
+  return GENEROS_BASE[i % 50];
+}
+
 function seedCotistas() {
   const estadosSeed = buildEstados(DEFAULT_CONFIG, 30);
-  const mk = (id, nome, unidade, papel, liderId, mesEntrada, cotas) => {
+  const mk = (id, nome, unidade, papel, liderId, mesEntrada, cotas, genero) => {
     const bonRatio = 0.5 + Math.random() * 0.3;
     const bon = Math.round(cotas * bonRatio);
     const comp = cotas - bon;
@@ -123,7 +132,7 @@ function seedCotistas() {
       vinculo: 'CLT',
       mesEntrada,
       cotas, cotasBonificadas: bon, cotasCompradas: comp, valorPagoCompras: valorPago,
-      fotoUrl: `https://i.pravatar.cc/150?img=${(id % 15) + 1}`,
+      fotoUrl: `https://randomuser.me/api/portraits/${genero === 'F' ? 'women' : 'men'}/${id % 15}.jpg`,
       compradoNoMes: {},
       historico: [
         { mes: mesEntrada, tipo: 'bonificacao', qtd: bon, valor: 0, desc: 'Bonificação inicial por performance' },
@@ -134,14 +143,14 @@ function seedCotistas() {
   };
 
   const lideresDef = [
-    { id: 1, nome: 'Marcos Tavares', unidade: 'Marketing', mesEntrada: 0, cotas: 90 },
-    { id: 2, nome: 'Rodrigo Lemos', unidade: 'Operação', mesEntrada: 4, cotas: 80 },
-    { id: 3, nome: 'Patrícia Reis', unidade: 'Implantação', mesEntrada: 8, cotas: 70 },
-    { id: 4, nome: 'Camila Duarte', unidade: 'Administrativo', mesEntrada: 12, cotas: 60 },
-    { id: 5, nome: 'Bruno Ferreira', unidade: 'Comercial', mesEntrada: 16, cotas: 55 },
-    { id: 6, nome: 'Fernanda Costa', unidade: 'Financeiro', mesEntrada: 20, cotas: 50 }
+    { id: 1, nome: 'Marcos Tavares', unidade: 'Marketing', mesEntrada: 0, cotas: 90, genero: 'M' },
+    { id: 2, nome: 'Rodrigo Lemos', unidade: 'Operação', mesEntrada: 4, cotas: 80, genero: 'M' },
+    { id: 3, nome: 'Patrícia Reis', unidade: 'Implantação', mesEntrada: 8, cotas: 70, genero: 'F' },
+    { id: 4, nome: 'Camila Duarte', unidade: 'Administrativo', mesEntrada: 12, cotas: 60, genero: 'F' },
+    { id: 5, nome: 'Bruno Ferreira', unidade: 'Comercial', mesEntrada: 16, cotas: 55, genero: 'M' },
+    { id: 6, nome: 'Fernanda Costa', unidade: 'Financeiro', mesEntrada: 20, cotas: 50, genero: 'F' }
   ];
-  const lideres = lideresDef.map(l => mk(l.id, l.nome, l.unidade, 'lider', null, l.mesEntrada, l.cotas));
+  const lideres = lideresDef.map(l => mk(l.id, l.nome, l.unidade, 'lider', null, l.mesEntrada, l.cotas, l.genero));
 
   const QTD_COLABORADORES = 100;
   const TOTAL_COTAS_DESEJADO = 1000;
@@ -152,9 +161,10 @@ function seedCotistas() {
   const colaboradores = [];
   for (let i = 0; i < QTD_COLABORADORES; i++) {
     const nome = nomeColaborador(i);
+    const genero = generoColaborador(i);
     const lider = lideresDef[i % lideresDef.length];
     const mesEntrada = Math.floor(Math.random() * 30);
-    colaboradores.push(mk(7 + i, nome, lider.unidade, 'colaborador', lider.id, mesEntrada, distribuicao[i]));
+    colaboradores.push(mk(7 + i, nome, lider.unidade, 'colaborador', lider.id, mesEntrada, distribuicao[i], genero));
   }
 
   return [...lideres, ...colaboradores];
@@ -843,11 +853,17 @@ function abrirModalNovoCotista() {
       const papel = papelSel.value;
       const unidade = root.querySelector('#modal-unidade').value;
       const liderId = papel === 'colaborador' ? Number(root.querySelector('#modal-lider').value) : null;
+      const primeiroNome = nome.split(' ')[0];
+      const idxConhecido = NOMES_BASE.findIndex(n => n.toLowerCase() === primeiroNome.toLowerCase());
+      const genero = idxConhecido >= 0 ? GENEROS_BASE[idxConhecido] : (/a$/i.test(primeiroNome) ? 'F' : 'M');
+      const novoId = state.nextId++;
       state.cotistas.push({
-        id: state.nextId++, nome, unidade, papel, liderId,
+        id: novoId, nome, unidade, papel, liderId,
         vinculo: 'CLT',
         mesEntrada: state.mesAtual, cotas: 0, cotasBonificadas: 0, cotasCompradas: 0,
-        valorPagoCompras: 0, compradoNoMes: {}, historico: []
+        valorPagoCompras: 0,
+        fotoUrl: `https://randomuser.me/api/portraits/${genero === 'F' ? 'women' : 'men'}/${novoId % 15}.jpg`,
+        compradoNoMes: {}, historico: []
       });
       persist();
       closeModal();
@@ -1233,7 +1249,7 @@ function openMaisSheet() {
     <button class="sheet-item" data-go="evolucao"><span class="ic">05</span>Evolução &amp; Projeção</button>
     <button class="sheet-item" data-go="saida"><span class="ic">06</span>Saída &amp; Recompra</button>
     <button class="sheet-item" data-go="config"><span class="ic">07</span>Configuração do Fundo</button>
-    <button class="sheet-item" data-go="fip"><span class="ic">★</span>O Que É um FIP?</button>
+    <button class="sheet-item" data-go="fip"><span class="ic">08</span>O Que É um FIP?</button>
     <button class="sheet-item" data-go="proposta"><span class="ic">09</span>Proposta Comercial</button>
   </div>`;
   openSheet(`<h3>Mais Opções</h3>`, itemsHtml, (root) => {

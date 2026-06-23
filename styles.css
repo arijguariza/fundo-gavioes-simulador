@@ -552,17 +552,6 @@ input[type="range"]::-moz-range-thumb{
 }
 .logo-chip img{height:100%; max-width:110px; object-fit:contain; display:block;}
 
-.icon-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:4px;}
-.icon-cell{
-  background:var(--panel); border:1px solid var(--line); border-radius:var(--r-md); padding:14px;
-  display:flex; flex-direction:column; gap:8px;
-}
-.icon-cell .ico{
-  width:30px; height:30px; border-radius:50%; background:var(--gold-soft); border:1px solid var(--gold-line);
-  display:flex; align-items:center; justify-content:center; font-size:14px;
-}
-.icon-cell .t{font-size:12.5px; font-weight:600; color:var(--ink);}
-
 .diff-list{display:flex; flex-direction:column; gap:12px; margin-top:4px;}
 .diff-row{display:flex; gap:12px; align-items:flex-start;}
 .diff-row .check{
