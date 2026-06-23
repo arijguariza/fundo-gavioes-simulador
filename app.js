@@ -449,11 +449,11 @@ function renderPortal() {
       <div class="role">${c.papel === 'lider' ? '<span class="badge gold" style="margin-right:6px;">LÍDER DE ÁREA</span>' : '<span class="badge neutral" style="margin-right:6px;">COLABORADOR(A)</span>'}${c.unidade}</div>
       <div class="lbl">Suas cotas valem hoje</div>
       <div class="big">${fmtBRL0(valorAtual)}</div>
-      <div class="sub">${fmtNum(c.cotas)} cotas × ${fmtBRL(valorCotaAtual)}</div>
+      <div class="sub">${fmtNum(c.cotas)} cotas (${fmtNum(c.cotasBonificadas)} bônus + ${fmtNum(c.cotasCompradas)} compradas) × ${fmtBRL(valorCotaAtual)}</div>
     </div>
 
     <div class="stat-grid">
-      <div class="kpi-card"><span class="lbl">Total Investido</span><span class="val">${fmtBRL0(totalInvestido)}</span><span class="sub">${fmtNum(c.cotasCompradas)} cotas compradas</span></div>
+      <div class="kpi-card"><span class="lbl">Pago do Bolso</span><span class="val">${fmtBRL0(totalInvestido)}</span><span class="sub">${fmtNum(c.cotasCompradas)} compradas · +${fmtNum(c.cotasBonificadas)} de bônus grátis</span></div>
       <div class="kpi-card">
         <span class="lbl">Dividendos</span><span class="val">${fmtBRL0(totalDividendos)}</span><span class="sub">recebido até hoje</span>
         <button class="kpi-mini-btn" id="btn-quick-sim">Simular ›</button>
