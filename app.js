@@ -4,7 +4,7 @@
    Tudo em memória / localStorage.
    ============================================================ */
 
-const STORAGE_KEY = 'gavioes_fundo_sim_v10';
+const STORAGE_KEY = 'gavioes_fundo_sim_v11';
 const HORIZON_MESES = 480; // 40 anos de estados pré-computados
 
 const DEFAULT_CONFIG = {
@@ -105,15 +105,30 @@ function seedCotistas() {
     const valorCotaNaEpoca = estadosSeed[Math.min(mesEntrada, estadosSeed.length - 1)].valorCota;
     const precoMedio = valorCotaNaEpoca * (0.94 + Math.random() * 0.12);
     const valorPago = Math.round(comp * precoMedio);
+
+    const dividendoEntries = [];
+    for (let m = mesEntrada; m < 30; m++) {
+      const e = estadosSeed[m];
+      const fundoRecebe = DEFAULT_CONFIG.lucroMensal * (DEFAULT_CONFIG.participacaoPct / 100);
+      const custoMensal = e.patrimonioFundo * (DEFAULT_CONFIG.taxaAdmPct / 100 / 12) + DEFAULT_CONFIG.auditoriaAnual / 12;
+      const dividendoPorCota = (fundoRecebe - custoMensal) / DEFAULT_CONFIG.totalCotas;
+      const dividendoCotista = cotas * dividendoPorCota;
+      if (dividendoCotista > 0) {
+        dividendoEntries.push({ mes: m, tipo: 'dividendo', qtd: null, valor: Math.round(dividendoCotista * 100) / 100, desc: 'Dividendo mensal' });
+      }
+    }
+
     return {
       id, nome, unidade, papel, liderId,
       vinculo: 'CLT',
       mesEntrada,
       cotas, cotasBonificadas: bon, cotasCompradas: comp, valorPagoCompras: valorPago,
+      fotoUrl: `https://i.pravatar.cc/150?img=${(id % 15) + 1}`,
       compradoNoMes: {},
       historico: [
         { mes: mesEntrada, tipo: 'bonificacao', qtd: bon, valor: 0, desc: 'Bonificação inicial por performance' },
-        ...(comp > 0 ? [{ mes: mesEntrada, tipo: 'compra', qtd: comp, valor: valorPago, desc: 'Compra de cotas' }] : [])
+        ...(comp > 0 ? [{ mes: mesEntrada, tipo: 'compra', qtd: comp, valor: valorPago, desc: 'Compra de cotas' }] : []),
+        ...dividendoEntries
       ]
     };
   };
@@ -444,7 +459,7 @@ function renderPortal() {
 
   document.getElementById('portal-body').innerHTML = `
     <div class="hero-card">
-      <div class="avatar ${c.papel === 'lider' ? 'lider' : ''}">${initials(c.nome)}${c.papel === 'lider' ? '<span class="crown">★</span>' : ''}</div>
+      <div class="avatar ${c.papel === 'lider' ? 'lider' : ''}" style="background-image:url('${c.fotoUrl}'); background-size:cover; background-position:center;">${c.papel === 'lider' ? '<span class="crown">★</span>' : ''}</div>
       <div class="name">${c.nome}</div>
       <div class="role">${c.papel === 'lider' ? '<span class="badge gold" style="margin-right:6px;">LÍDER DE ÁREA</span>' : '<span class="badge neutral" style="margin-right:6px;">COLABORADOR(A)</span>'}${c.unidade}</div>
       <div class="lbl">Suas cotas valem hoje</div>
@@ -1136,7 +1151,7 @@ function renderSaida() {
 
   document.getElementById('saida-body').innerHTML = `
     <div class="identity-card">
-      <div class="avatar">${initials(c.nome)}</div>
+      <div class="avatar" style="background-image:url('${c.fotoUrl}'); background-size:cover; background-position:center;"></div>
       <div class="info"><h2>${c.nome}</h2><div class="role">${c.unidade} · entrou no mês ${c.mesEntrada} · ${fmtNum(c.cotas)} cotas</div></div>
     </div>
     <div class="scenario">
