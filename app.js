@@ -183,11 +183,8 @@ function loadState() {
 
 function resetSim() {
   if (!confirm('Reiniciar a simulação? Todos os dados voltam ao ponto de partida.')) return;
-  state = freshState();
-  persist();
-  rebuildEstados();
-  renderAll();
-  toast('Simulação reiniciada.');
+  try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignora */ }
+  window.location.href = window.location.pathname + '?t=' + Date.now();
 }
 
 /* ============================================================
