@@ -4,16 +4,16 @@
    Tudo em memória / localStorage.
    ============================================================ */
 
-const STORAGE_KEY = 'gavioes_fundo_sim_v12';
+const STORAGE_KEY = 'gavioes_fundo_sim_v13';
 const HORIZON_MESES = 480; // 40 anos de estados pré-computados
 
 const DEFAULT_CONFIG = {
-  lucroMensal: 100000,
+  lucroMensal: 31200,
   multiplo: 10,
   custoAbertura: 5000000,
   crescimento: 10,       // % a.a. de valorização da academia
   participacaoPct: 2.5,  // % do fundo na academia
-  totalCotas: 5000,
+  totalCotas: 2400,
   taxaAdmPct: 1.5,        // % a.a. sobre patrimônio
   auditoriaAnual: 6000,   // R$/ano fixo
   cotasLiderMes: 20,
@@ -153,7 +153,7 @@ function seedCotistas() {
   const lideres = lideresDef.map(l => mk(l.id, l.nome, l.unidade, 'lider', null, l.mesEntrada, l.cotas, l.genero));
 
   const QTD_COLABORADORES = 100;
-  const TOTAL_COTAS_DESEJADO = 1000;
+  const TOTAL_COTAS_DESEJADO = 1279; // líderes (405) + colaboradores (874)
   const cotasLideresSoma = lideresDef.reduce((s, l) => s + l.cotas, 0);
   const cotasColaboradores = Math.max(0, TOTAL_COTAS_DESEJADO - cotasLideresSoma);
   const distribuicao = distribuirAleatorio(QTD_COLABORADORES, cotasColaboradores);
