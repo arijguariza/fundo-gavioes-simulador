@@ -17,7 +17,7 @@ const DEFAULT_CONFIG = {
   taxaAdmPct: 1.5,        // % a.a. sobre patrimônio
   auditoriaAnual: 6000,   // R$/ano fixo
   cotasLiderMes: 20,
-  limiteCompraMes: 100,
+  limiteCompraMes: 20,
   irrfPct: 15
 };
 
