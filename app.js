@@ -1,10 +1,10 @@
 /* ============================================================
    FUNDO GAVIÕES — SIMULADOR MOBILE
    Motor de cálculo + estado + renderização. Sem backend, sem banco.
-   Tudo em memória / localStorage. Dados fictícios.
+   Tudo em memória / localStorage.
    ============================================================ */
 
-const STORAGE_KEY = 'gavioes_fundo_sim_v9';
+const STORAGE_KEY = 'gavioes_fundo_sim_v10';
 const HORIZON_MESES = 480; // 40 anos de estados pré-computados
 
 const DEFAULT_CONFIG = {
@@ -97,11 +97,13 @@ function nomeColaborador(i) {
 }
 
 function seedCotistas() {
+  const estadosSeed = buildEstados(DEFAULT_CONFIG, 30);
   const mk = (id, nome, unidade, papel, liderId, mesEntrada, cotas) => {
     const bonRatio = 0.5 + Math.random() * 0.3;
     const bon = Math.round(cotas * bonRatio);
     const comp = cotas - bon;
-    const precoMedio = 19 + Math.random() * 4;
+    const valorCotaNaEpoca = estadosSeed[Math.min(mesEntrada, estadosSeed.length - 1)].valorCota;
+    const precoMedio = valorCotaNaEpoca * (0.94 + Math.random() * 0.12);
     const valorPago = Math.round(comp * precoMedio);
     return {
       id, nome, unidade, papel, liderId,
@@ -180,7 +182,7 @@ function loadState() {
 }
 
 function resetSim() {
-  if (!confirm('Reiniciar a simulação? Todos os dados fictícios voltam ao ponto de partida.')) return;
+  if (!confirm('Reiniciar a simulação? Todos os dados voltam ao ponto de partida.')) return;
   state = freshState();
   persist();
   rebuildEstados();
@@ -806,7 +808,7 @@ function abrirModalCompra(cotistaId) {
 function abrirModalNovoCotista() {
   const lideres = state.cotistas.filter(c => c.papel === 'lider');
   openModal(`
-    <h3>Novo Cotista Fictício</h3>
+    <h3>Novo Cotista</h3>
     <div class="field"><label>Nome</label><input type="text" id="modal-nome" placeholder="Nome completo"></div>
     <div class="field"><label>Unidade</label><select id="modal-unidade">${UNIDADES.map(u => `<option value="${u}">${u}</option>`).join('')}</select></div>
     <div class="field"><label>Papel</label>
@@ -836,7 +838,7 @@ function abrirModalNovoCotista() {
       });
       persist();
       closeModal();
-      toast(`${nome} adicionado(a) como cotista fictício.`);
+      toast(`${nome} adicionado(a) com sucesso.`);
       renderAll();
     });
   });
