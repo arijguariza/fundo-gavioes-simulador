@@ -1167,6 +1167,50 @@ function wireAccordion() {
 }
 
 /* ============================================================
+   PROPOSTA COMERCIAL — CALCULADORAS INTERATIVAS
+   ============================================================ */
+function wirePropostaCalculators() {
+  const func = document.getElementById('calc1-func');
+  const turnover = document.getElementById('calc1-turnover');
+  if (func && turnover) {
+    const atualizaCalc1 = () => {
+      const nFunc = Number(func.value);
+      const turnoverPct = Number(turnover.value);
+      const saidasHoje = nFunc * (turnoverPct / 100);
+      const saidasEquity = saidasHoje * 0.75; // baseado no case 20% -> 15%
+      const reducao = saidasHoje - saidasEquity;
+      const economia = reducao * 5000;
+
+      document.getElementById('calc1-func-out').textContent = fmtNum(nFunc);
+      document.getElementById('calc1-turnover-out').textContent = `${turnoverPct}%`;
+      document.getElementById('calc1-out-saidas-hoje').textContent = `${fmtNum(saidasHoje)}/ano`;
+      document.getElementById('calc1-out-saidas-equity').textContent = `${fmtNum(saidasEquity)}/ano`;
+      document.getElementById('calc1-out-economia').textContent = `${fmtBRL0(economia)}/ano`;
+    };
+    func.addEventListener('input', atualizaCalc1);
+    turnover.addEventListener('input', atualizaCalc1);
+    atualizaCalc1();
+  }
+
+  const valorSlider = document.getElementById('calc2-valor');
+  if (valorSlider) {
+    const atualizaCalc2 = () => {
+      const valor = Number(valorSlider.value);
+      const pct = Math.min(100, 20 + (valor / 1000) * 80);
+      document.getElementById('calc2-valor-out').textContent = fmtBRL0(valor);
+      document.getElementById('calc2-bar').style.width = `${pct}%`;
+      const tierEl = document.getElementById('calc2-tier');
+      if (pct < 25) tierEl.textContent = 'Engajamento Básico';
+      else if (pct < 50) tierEl.textContent = 'Engajamento Crescente';
+      else if (pct < 75) tierEl.textContent = 'Alto Comprometimento';
+      else tierEl.textContent = 'Mentalidade de Dono';
+    };
+    valorSlider.addEventListener('input', atualizaCalc2);
+    atualizaCalc2();
+  }
+}
+
+/* ============================================================
    EVENTOS GLOBAIS + INIT
    ============================================================ */
 function openMaisSheet() {
@@ -1175,6 +1219,7 @@ function openMaisSheet() {
     <button class="sheet-item" data-go="saida"><span class="ic">06</span>Saída &amp; Recompra</button>
     <button class="sheet-item" data-go="config"><span class="ic">07</span>Configuração do Fundo</button>
     <button class="sheet-item" data-go="fip"><span class="ic">★</span>O Que É um FIP?</button>
+    <button class="sheet-item" data-go="proposta"><span class="ic">09</span>Proposta Comercial</button>
   </div>`;
   openSheet(`<h3>Mais Opções</h3>`, itemsHtml, (root) => {
     root.querySelectorAll('[data-go]').forEach(b => {
@@ -1227,6 +1272,7 @@ function wireGlobalEvents() {
   document.getElementById('btn-novo-cotista').addEventListener('click', abrirModalNovoCotista);
 
   wireAccordion();
+  wirePropostaCalculators();
 }
 
 function init() {

@@ -223,6 +223,127 @@
       <p class="hint" style="text-align:center; margin:18px 0 4px;">Valores deste resumo são ilustrativos — os números reais do fundo estão nas abas Fundo e Configuração.</p>
     </section>
 
+    <!-- PROPOSTA COMERCIAL -->
+    <section class="view hidden" data-view="proposta">
+
+      <div class="pitch-hero">
+        <span class="eyebrow">Proposta Comercial</span>
+        <h1>Seu time não quer só salário.<br>Quer pedaço do negócio.</h1>
+        <p>Toda empresa perde gente boa pra concorrência por causa de R$200, R$300 de diferença no salário. Tem um jeito de competir que nenhum aumento resolve: fazer o funcionário virar sócio de verdade do que ele ajuda a construir.</p>
+      </div>
+
+      <div class="m-card">
+        <h3 style="margin-bottom:10px;">O problema que já está custando caro</h3>
+        <p style="font-size:13px; line-height:1.65; color:var(--ink-dim);">Cada vez que um bom funcionário sai, a conta não é só a vaga aberta — é recrutamento, treinamento, curva de aprendizado e o tempo que o time perde se reorganizando. Isso tem um preço, e ele é mais alto do que parece.</p>
+        <div class="stat-grid" style="margin-top:14px;">
+          <div class="kpi-card"><span class="lbl">Custo médio por saída</span><span class="val">R$ 5.000</span><span class="sub">recrutamento + treinamento de um substituto</span></div>
+          <div class="kpi-card"><span class="lbl">Turnover típico</span><span class="val">15-20%</span><span class="sub">ao ano, em redes de serviço</span></div>
+        </div>
+      </div>
+
+      <div class="m-card">
+        <h3 style="margin-bottom:10px;">A ideia é simples</h3>
+        <p style="font-size:13.5px; line-height:1.7; color:var(--ink);">A empresa separa uma fatia dela mesma e divide entre quem trabalha lá. Cada funcionário recebe ou compra um pedacinho dessa fatia. Conforme a empresa cresce e lucra, esse pedacinho vale mais — e ele recebe parte do lucro todo mês, em dinheiro.</p>
+        <p style="font-size:13.5px; line-height:1.7; color:var(--ink); margin-top:10px;">Sem juridiquês. Sem virar sócio formal da empresa. Sem dor de cabeça pra escalar de 10 ou de 10.000 funcionários.</p>
+      </div>
+
+      <div class="m-card">
+        <h3 style="margin-bottom:4px;">A prova de que funciona</h3>
+        <p class="hint" style="margin-bottom:4px;">Dados de quem estuda engajamento no mundo todo.</p>
+        <div class="stat-proof-grid">
+          <div class="stat-proof"><div class="num">−40%</div><div class="lbl">Redução de Turnover</div><div class="src">Funcionários ficam 2-3 anos mais</div></div>
+          <div class="stat-proof"><div class="num">+147%</div><div class="lbl">Desempenho</div><div class="src">Gallup</div></div>
+          <div class="stat-proof"><div class="num">+22%</div><div class="lbl">Produtividade</div><div class="src">Phenom</div></div>
+          <div class="stat-proof"><div class="num">3×</div><div class="lbl">Mais Retenção</div><div class="src">de talentos críticos</div></div>
+        </div>
+      </div>
+
+      <div class="m-card calc-card">
+        <h3 style="margin-bottom:4px;">Quanto isso economiza no seu caso?</h3>
+        <p class="hint" style="margin-bottom:16px;">Arrasta os controles pro tamanho do seu time.</p>
+        <div class="field">
+          <label>Número de funcionários <span class="v" id="calc1-func-out">500</span></label>
+          <input type="range" id="calc1-func" min="10" max="3000" step="10" value="500">
+        </div>
+        <div class="field">
+          <label>Turnover atual ao ano <span class="v" id="calc1-turnover-out">20%</span></label>
+          <input type="range" id="calc1-turnover" min="5" max="40" step="1" value="20">
+        </div>
+        <div class="calc-output">
+          <div class="calc-output-row"><span class="k">Saídas por ano hoje</span><span class="v" id="calc1-out-saidas-hoje">—</span></div>
+          <div class="calc-output-row"><span class="k">Saídas por ano com equity</span><span class="v" id="calc1-out-saidas-equity">—</span></div>
+          <div class="calc-output-row hl"><span class="k">Economia estimada por ano</span><span class="v" id="calc1-out-economia">—</span></div>
+        </div>
+        <p class="hint" style="margin-top:10px;">Baseado em estudo de caso real: turnover de 20% cai para 15% com programa de equity, a R$5.000 de custo por substituição.</p>
+      </div>
+
+      <div class="m-card calc-card">
+        <h3 style="margin-bottom:4px;">O efeito de "virar dono"</h3>
+        <p class="hint" style="margin-bottom:16px;">Quanto mais pele no jogo, maior o comprometimento.</p>
+        <div class="field">
+          <label>Valor médio investido em cotas / mês <span class="v" id="calc2-valor-out">R$ 300</span></label>
+          <input type="range" id="calc2-valor" min="0" max="1000" step="25" value="300">
+        </div>
+        <div class="engagement-bar-track"><i id="calc2-bar" style="width:0%"></i></div>
+        <div class="engagement-tier" id="calc2-tier">—</div>
+        <p class="engagement-note">Ilustrativo, com base nos estudos Gallup e Phenom acima — quanto maior a "pele no jogo", mais perto da mentalidade de dono do negócio.</p>
+      </div>
+
+      <div class="m-card">
+        <h3 style="margin-bottom:12px;">Quem já faz isso</h3>
+        <div class="logo-row">
+          <span class="logo-chip">Ambev</span>
+          <span class="logo-chip">XP</span>
+          <span class="logo-chip">Nubank</span>
+        </div>
+        <p class="hint" style="margin-top:12px;">Não é experimento — é um modelo testado por quem mais entende de reter gente boa no Brasil.</p>
+      </div>
+
+      <div class="m-card">
+        <h3 style="margin-bottom:12px;">Pra quem serve</h3>
+        <div class="icon-grid">
+          <div class="icon-cell"><span class="ico">🏋️</span><span class="t">Franqueadoras</span></div>
+          <div class="icon-cell"><span class="ico">🛒</span><span class="t">Redes de Varejo</span></div>
+          <div class="icon-cell"><span class="ico">🏭</span><span class="t">Indústrias</span></div>
+          <div class="icon-cell"><span class="ico">🏥</span><span class="t">Hospitais</span></div>
+          <div class="icon-cell"><span class="ico">🏫</span><span class="t">Escolas</span></div>
+          <div class="icon-cell"><span class="ico">💼</span><span class="t">Empresas de Serviço</span></div>
+        </div>
+      </div>
+
+      <div class="m-card">
+        <h3 style="margin-bottom:14px;">Por que esse modelo, e não outro</h3>
+        <div class="diff-list">
+          <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Escala de 10 a 10.000 pessoas</strong><span>Entrada e saída de funcionários não exige mudar contrato nem reorganizar sócios.</span></div></div>
+          <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Pronto pra rodar</strong><span>Estrutura testada — não é preciso inventar nada do zero.</span></div></div>
+          <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Flexível pra qualquer setor</strong><span>Funciona igual em academia, indústria, varejo ou serviço.</span></div></div>
+          <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Liquidez simples</strong><span>Quem sai recebe o valor de mercado das cotas — sem processo arrastado.</span></div></div>
+        </div>
+      </div>
+
+      <div class="m-card">
+        <h3 style="margin-bottom:10px;">Não é só uma ideia no slide</h3>
+        <p style="font-size:13px; line-height:1.65; color:var(--ink-dim);">O sistema que você está usando agora — com cotistas, ciclo mensal, dividendos e simulação de saída — já está rodando. Dá pra abrir o próprio celular do investidor e mostrar o fundo funcionando, com números, na hora.</p>
+      </div>
+
+      <div class="m-card">
+        <h3 style="margin-bottom:12px;">A oportunidade além da Gaviões</h3>
+        <p style="font-size:13px; line-height:1.6; color:var(--ink-dim); margin-bottom:6px;">Esse mesmo modelo pode ser vendido pra outras redes que sofrem com o mesmo problema de turnover.</p>
+        <div class="revenue-table">
+          <div class="revenue-row"><span class="k">Consultoria de implementação</span><span class="v">R$ 30-50 mil</span></div>
+          <div class="revenue-row"><span class="k">Taxa de administração recorrente</span><span class="v">0,5-1% a.a.</span></div>
+          <div class="revenue-row"><span class="k">10 redes adotando o modelo</span><span class="v">R$ 250-500 mil/ano</span></div>
+        </div>
+      </div>
+
+      <div class="cta-card">
+        <h3>Bora conversar?</h3>
+        <p>Isso aqui não é teoria — é um sistema rodando, com números reais de simulação, pronto pra ser apresentado.</p>
+        <p style="margin-top:10px; color:var(--gold-bright); font-weight:600;">Cada mês sem isso é turnover, custo e gente boa indo pra concorrência.</p>
+      </div>
+
+    </section>
+
   </main>
 
   <nav class="bottom-nav" id="bottom-nav">
