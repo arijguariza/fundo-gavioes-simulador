@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gavioes-fundo-v3';
+const CACHE_NAME = 'gavioes-fundo-v4';
 const PRECACHE_URLS = [
   './',
   './index.html',
@@ -9,6 +9,7 @@ const PRECACHE_URLS = [
   './icon-512.png',
   './apple-touch-icon.png'
 ];
+const SHELL_URL = './index.html';
 
 // Safari recusa servir, para navegação, uma Response marcada como "redirected"
 // (ex: quando o Cloudflare Access faz um 302 no meio do caminho). Por isso toda
@@ -49,34 +50,53 @@ self.addEventListener('fetch', (event) => {
   const isSameOrigin = new URL(req.url).origin === self.location.origin;
 
   if (isSameOrigin) {
-    // App shell: serve do cache na hora, atualiza em segundo plano quando online.
-    // ignoreSearch protege contra qualquer URL com query string (ex: ?t=...) que
-    // não tenha entrada exata no cache — cai de volta na página base cacheada.
-    event.respondWith(
-      caches.match(req, { ignoreSearch: true }).then((cached) => {
-        const network = fetch(req).then(async (res) => {
+    event.respondWith((async () => {
+      const cached = await caches.match(req, { ignoreSearch: true });
+      if (cached) {
+        // Atualiza em segundo plano, sem bloquear a resposta já cacheada
+        fetch(req).then(async (res) => {
           if (res && res.ok) {
             const plain = await toPlainResponse(res);
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, plain.clone()));
-            return plain;
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(req, plain);
           }
-          return res;
-        }).catch(() => cached);
-        return cached || network;
-      })
-    );
+        }).catch(() => {});
+        return cached;
+      }
+      try {
+        const res = await fetch(req);
+        if (res && res.ok) {
+          const plain = await toPlainResponse(res);
+          const cache = await caches.open(CACHE_NAME);
+          cache.put(req, plain.clone());
+          return plain;
+        }
+        return res;
+      } catch (err) {
+        // Offline e sem entrada exata no cache: cai pro shell do app (SPA) em
+        // vez de devolver nada — Safari quebra a navegação se a resposta é vazia.
+        if (req.mode === 'navigate') {
+          const shell = await caches.match(SHELL_URL, { ignoreSearch: true });
+          if (shell) return shell;
+        }
+        return new Response('Offline', { status: 503, statusText: 'Offline' });
+      }
+    })());
   } else {
     // Fotos de avatar (randomuser.me): cache-first, guarda o que conseguir buscar
-    event.respondWith(
-      caches.match(req).then((cached) => {
-        if (cached) return cached;
-        return fetch(req).then((res) => {
-          if (res && (res.ok || res.type === 'opaque')) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, res.clone()));
-          }
-          return res;
-        }).catch(() => cached);
-      })
-    );
+    event.respondWith((async () => {
+      const cached = await caches.match(req);
+      if (cached) return cached;
+      try {
+        const res = await fetch(req);
+        if (res && (res.ok || res.type === 'opaque')) {
+          const cache = await caches.open(CACHE_NAME);
+          cache.put(req, res.clone());
+        }
+        return res;
+      } catch (err) {
+        return new Response('', { status: 504, statusText: 'Offline' });
+      }
+    })());
   }
 });
