@@ -209,7 +209,17 @@ function loadState() {
 function resetSim() {
   if (!confirm('Reiniciar a simulação? Todos os dados voltam ao ponto de partida.')) return;
   try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignora */ }
-  window.location.href = window.location.pathname + '?t=' + Date.now();
+  const cleanUrl = window.location.origin + window.location.pathname;
+  if (navigator.onLine && 'caches' in window) {
+    // Com internet: limpa o cache do service worker pra garantir página e dados atualizados
+    caches.keys()
+      .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+      .catch(() => {})
+      .finally(() => { window.location.href = cleanUrl; });
+  } else {
+    // Sem internet: recarrega a mesma URL (sem query string) pra bater com o cache offline
+    window.location.href = cleanUrl;
+  }
 }
 
 /* ============================================================

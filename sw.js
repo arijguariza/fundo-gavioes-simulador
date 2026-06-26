@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gavioes-fundo-v2';
+const CACHE_NAME = 'gavioes-fundo-v3';
 const PRECACHE_URLS = [
   './',
   './index.html',
@@ -49,9 +49,11 @@ self.addEventListener('fetch', (event) => {
   const isSameOrigin = new URL(req.url).origin === self.location.origin;
 
   if (isSameOrigin) {
-    // App shell: serve do cache na hora, atualiza em segundo plano quando online
+    // App shell: serve do cache na hora, atualiza em segundo plano quando online.
+    // ignoreSearch protege contra qualquer URL com query string (ex: ?t=...) que
+    // não tenha entrada exata no cache — cai de volta na página base cacheada.
     event.respondWith(
-      caches.match(req).then((cached) => {
+      caches.match(req, { ignoreSearch: true }).then((cached) => {
         const network = fetch(req).then(async (res) => {
           if (res && res.ok) {
             const plain = await toPlainResponse(res);
