@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gavioes-fundo-v4';
+const CACHE_NAME = 'gavioes-fundo-v5';
 const PRECACHE_URLS = [
   './',
   './index.html',
@@ -76,7 +76,7 @@ self.addEventListener('fetch', (event) => {
         // Offline e sem entrada exata no cache: cai pro shell do app (SPA) em
         // vez de devolver nada — Safari quebra a navegação se a resposta é vazia.
         if (req.mode === 'navigate') {
-          const shell = await caches.match(SHELL_URL, { ignoreSearch: true });
+          const shell = await caches.match(SHELL_URL, { ignoreSearch: true }) || await caches.match('./', { ignoreSearch: true });
           if (shell) return shell;
         }
         return new Response('Offline', { status: 503, statusText: 'Offline' });
