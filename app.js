@@ -1261,6 +1261,7 @@ function openMaisSheet() {
     <button class="sheet-item" data-go="config"><span class="ic">07</span>Configuração do Fundo</button>
     <button class="sheet-item" data-go="fip"><span class="ic">08</span>O Que É um FIP?</button>
     <button class="sheet-item" data-go="proposta"><span class="ic">09</span>Proposta Comercial</button>
+    <button class="sheet-item" data-go="concorrentes"><span class="ic">10</span>Estudo de Concorrentes</button>
   </div>`;
   openSheet(`<h3>Mais Opções</h3>`, itemsHtml, (root) => {
     root.querySelectorAll('[data-go]').forEach(b => {
