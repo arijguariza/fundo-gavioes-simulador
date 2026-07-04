@@ -129,6 +129,16 @@
       <div id="mercado-list"></div>
     </section>
 
+    <!-- REGRAS DO FUNDO -->
+    <section class="view hidden" data-view="regras">
+      <div class="m-view-head">
+        <span class="eyebrow">Governança</span>
+        <h1>Regras do Fundo</h1>
+        <p class="desc">Como as cotas nascem, circulam e são recompradas — de quem é cada cota, quem tem prioridade de compra e o que acontece quando alguém sai.</p>
+      </div>
+      <div id="regras-body"></div>
+    </section>
+
     <!-- CONFIGURAÇÃO -->
     <section class="view hidden" data-view="config">
       <div class="m-view-head">
@@ -164,9 +174,16 @@
       </div>
       <div class="m-card">
         <h3>Proteções do Fundo</h3>
-        <div class="field"><label>Reserva de recompra (% do patrimônio)</label><input type="number" id="cfg-reserva" step="1" min="0" max="50"></div>
+        <div class="field"><label>Caixa de recompra (% do patrimônio)</label><input type="number" id="cfg-reserva" step="1" min="0" max="50"></div>
         <div class="field"><label>Concentração máxima por cotista (% do fundo)</label><input type="number" id="cfg-concentracao" step="1" min="1" max="100"></div>
-        <p class="hint">A reserva garante caixa para recomprar cotas de quem sai. O limite de concentração impede que uma pessoa acumule cotas demais.</p>
+        <div class="field"><label>Prazo de pagamento da recompra (dias)</label><input type="number" id="cfg-prazoPagamento" step="15" min="0" max="180"></div>
+        <p class="hint">O caixa garante dinheiro para recomprar cotas de quem sai. O limite de concentração impede que uma pessoa acumule cotas demais. O prazo é o tempo máximo para pagar quem se desliga.</p>
+      </div>
+      <div class="m-card">
+        <h3>Posse das Cotas</h3>
+        <div class="field"><label>Reserva da Empresa (cotas p/ bonificar)</label><input type="number" id="cfg-reservaEmpresa" step="10" min="0"></div>
+        <p class="hint" id="cfg-pools-out"></p>
+        <p class="hint">O restante das cotas não-distribuídas vira Tesouraria do Fundo, usada para recomprar quem sai.</p>
       </div>
       <button class="btn primary full" id="cfg-aplicar">Aplicar e Recalcular</button>
       <button class="btn ghost full" id="cfg-padrao" style="margin-top:10px;">Restaurar Padrões</button>

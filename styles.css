@@ -584,6 +584,22 @@ label.drip-toggle{
 .drip-toggle .txt{font-size:12px; line-height:1.55; color:var(--ink-dim);}
 .drip-toggle .txt strong{color:var(--ink); font-size:12.5px;}
 
+/* ===== Regras do Fundo ===== */
+.rule-pools{display:flex; flex-direction:column; gap:12px; margin:14px 0 6px;}
+.rule-pools .rp{display:flex; gap:11px; align-items:flex-start;}
+.rule-pools .rp-dot{flex:0 0 auto; width:12px; height:12px; border-radius:4px; margin-top:3px;}
+.rule-pools .rp strong{display:block; font-size:13px; color:var(--ink); margin-bottom:2px;}
+.rule-pools .rp span{font-size:12px; color:var(--ink-dim); line-height:1.5;}
+.waterfall{display:flex; flex-direction:column; margin-top:4px;}
+.wf-step{display:flex; gap:12px; padding-bottom:16px; position:relative;}
+.wf-step:not(.last)::before{content:''; position:absolute; left:13px; top:28px; bottom:0; width:2px; background:linear-gradient(var(--gold-line), transparent);}
+.wf-step .wf-n{
+  flex:0 0 auto; width:28px; height:28px; border-radius:50%; background:var(--gold-soft); border:1px solid var(--gold-line);
+  color:var(--gold-bright); display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:13px; font-weight:600; z-index:1;
+}
+.wf-step strong{display:block; font-size:13.5px; color:var(--ink); margin-bottom:3px;}
+.wf-step p{font-size:12px; color:var(--ink-dim); line-height:1.5;}
+
 /* ===== Mercado de Cotas ===== */
 .market-card{
   background:linear-gradient(160deg, var(--panel), var(--panel-2)); border:1px solid var(--line);

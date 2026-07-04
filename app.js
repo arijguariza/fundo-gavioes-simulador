@@ -4,7 +4,7 @@
    Tudo em memória / localStorage.
    ============================================================ */
 
-const STORAGE_KEY = 'gavioes_fundo_sim_v15';
+const STORAGE_KEY = 'gavioes_fundo_sim_v16';
 const HORIZON_MESES = 480; // 40 anos de estados pré-computados
 
 const DEFAULT_CONFIG = {
@@ -19,8 +19,9 @@ const DEFAULT_CONFIG = {
   cotasLiderMes: 20,
   limiteCompraMes: 20,
   irrfPct: 15,
-  reservaPct: 10,            // % do patrimônio reservado em caixa p/ recompras de saída
-  limiteConcentracaoPct: 10  // máximo de % do total de cotas por cotista
+  reservaPct: 10,             // % do patrimônio reservado em caixa p/ recompras de saída
+  limiteConcentracaoPct: 10,  // máximo de % do total de cotas por cotista
+  prazoPagamentoDias: 60      // prazo máximo para pagar a recompra de quem sai
 };
 
 const UNIDADES = ['Marketing', 'Operação', 'Implantação', 'Administrativo', 'Comercial', 'Financeiro'];
@@ -198,10 +199,17 @@ function seedMercado(cotistas, valorCotaRef) {
 function freshState() {
   const cotistas = seedCotistas();
   const valorCotaRef = buildEstados(DEFAULT_CONFIG, 30)[30].valorCota;
+  const distribuido = cotistas.reduce((s, c) => s + c.cotas, 0);
+  const naoDistribuido = DEFAULT_CONFIG.totalCotas - distribuido;
+  const reservaEmpresa = Math.round(naoDistribuido * 0.62); // empresa detém a maior parte p/ bonificar
+  const tesourariaFundo = naoDistribuido - reservaEmpresa;   // fundo guarda o resto p/ recompra
   return {
     config: { ...DEFAULT_CONFIG },
     cotistas,
     mercado: seedMercado(cotistas, valorCotaRef),
+    reservaEmpresa,
+    tesourariaFundo,
+    pagamentosPendentes: [],
     mesAtual: 30,
     nextId: 107,
     nextListingId: 1010,
@@ -236,6 +244,14 @@ function loadState() {
         });
         if (!Array.isArray(parsed.mercado)) parsed.mercado = [];
         if (parsed.nextListingId == null) parsed.nextListingId = 1010;
+        // Pools de posse das cotas (empresa vs fundo)
+        if (parsed.reservaEmpresa == null || parsed.tesourariaFundo == null) {
+          const distribuido = parsed.cotistas.reduce((s, c) => s + c.cotas, 0);
+          const naoDistribuido = Math.max(0, parsed.config.totalCotas - distribuido);
+          parsed.reservaEmpresa = Math.round(naoDistribuido * 0.62);
+          parsed.tesourariaFundo = naoDistribuido - parsed.reservaEmpresa;
+        }
+        if (!Array.isArray(parsed.pagamentosPendentes)) parsed.pagamentosPendentes = [];
         return parsed;
       }
     }
@@ -292,12 +308,43 @@ function estadoNoMes(mes) { const m = Math.max(0, Math.min(mes, estados.length -
 function getCotista(id) { return state.cotistas.find(c => c.id === Number(id)); }
 function colaboradoresDe(liderId) { return state.cotistas.filter(c => c.liderId === liderId); }
 function totalDistribuido() { return state.cotistas.reduce((s, c) => s + c.cotas, 0); }
-function cotasEmTesouraria() { return Math.max(0, state.config.totalCotas - totalDistribuido()); }
+
+/* Cotas não-distribuídas = as que estão em algum pool (empresa + fundo).
+   Invariante do sistema: distribuído + reservaEmpresa + tesourariaFundo === totalCotas. */
+function cotasNaoDistribuidas() { return (state.reservaEmpresa || 0) + (state.tesourariaFundo || 0); }
+function cotasEmTesouraria() { return cotasNaoDistribuidas(); } // compat: "tesouraria" no sentido amplo
 function maxCotasPorCotista() { return Math.floor(state.config.totalCotas * (state.config.limiteConcentracaoPct / 100)); }
 
-/* Quantas cotas um cotista ainda pode adquirir, respeitando concentração e tesouraria */
+/* Quantas cotas um cotista ainda pode adquirir, respeitando concentração e cotas disponíveis nos pools */
 function margemCompra(cotista) {
-  return Math.max(0, Math.min(maxCotasPorCotista() - cotista.cotas, cotasEmTesouraria()));
+  return Math.max(0, Math.min(maxCotasPorCotista() - cotista.cotas, cotasNaoDistribuidas()));
+}
+
+/* Emite cotas dos pools para um cotista (compra primária): tira da Tesouraria do
+   Fundo primeiro, depois da Reserva da Empresa. Retorna quantas foram emitidas. */
+function emitirCotas(qtd) {
+  qtd = Math.max(0, Math.min(qtd, cotasNaoDistribuidas()));
+  const daTes = Math.min(state.tesourariaFundo, qtd);
+  state.tesourariaFundo -= daTes;
+  const daEmp = qtd - daTes;
+  state.reservaEmpresa -= daEmp;
+  return qtd;
+}
+
+/* Concede cotas de bonificação a partir da Reserva da Empresa (depois Tesouraria do Fundo).
+   Retorna quantas foram efetivamente concedidas. */
+function concederBonificacao(qtd) {
+  qtd = Math.max(0, Math.min(qtd, cotasNaoDistribuidas()));
+  const daEmp = Math.min(state.reservaEmpresa, qtd);
+  state.reservaEmpresa -= daEmp;
+  state.tesourariaFundo -= (qtd - daEmp);
+  return qtd;
+}
+
+/* Devolve cotas recompradas a um pool ('empresa' ou 'fundo') */
+function devolverCotas(qtd, destino) {
+  if (destino === 'empresa') state.reservaEmpresa += qtd;
+  else state.tesourariaFundo += qtd;
 }
 
 /* Sem vesting: o fundo recompra as cotas pelo valor de mercado no momento da saída,
@@ -344,12 +391,14 @@ function registrarCompra(cotistaId, valorReais) {
   if (margem <= 0) { toast(`Limite de concentração atingido (máx. ${fmtNum(maxCotasPorCotista())} cotas por cotista).`); return; }
   qtd = Math.min(qtd, restante, margem);
   if (qtd <= 0) { toast('Valor insuficiente para comprar ao menos 1 cota.'); return; }
+  qtd = emitirCotas(qtd); // primária: sai da Tesouraria do Fundo / Reserva da Empresa
+  if (qtd <= 0) { toast('Não há cotas disponíveis nos pools para emissão.'); return; }
   const custo = qtd * valorCotaAtual;
   cotista.cotas += qtd;
   cotista.cotasCompradas += qtd;
   cotista.valorPagoCompras += custo;
   cotista.compradoNoMes[state.mesAtual] = jaComprado + qtd;
-  cotista.historico.push({ mes: state.mesAtual, tipo: 'compra', qtd, valor: custo, desc: 'Compra de cotas' });
+  cotista.historico.push({ mes: state.mesAtual, tipo: 'compra', qtd, valor: custo, desc: 'Compra de cotas (emissão primária)' });
   persist();
   toast(`${cotista.nome} comprou ${qtd} cotas por ${fmtBRL(custo)}.`);
   renderAll();
@@ -490,6 +539,7 @@ function renderAll() {
   else if (v === 'portal') renderPortal();
   else if (v === 'saida') renderSaida();
   else if (v === 'mercado') renderMercado();
+  else if (v === 'regras') renderRegras();
 }
 
 function renderNav() {
@@ -711,17 +761,20 @@ function renderOverview() {
     `${fmtNum(state.config.totalCotas)} cotas totais`
   );
 
-  // Tesouraria & liquidez para recompras
-  const tesouraria = cotasEmTesouraria();
+  // Posse das cotas + liquidez para recompras
+  const reservaEmp = state.reservaEmpresa || 0;
+  const tesFundo = state.tesourariaFundo || 0;
   const reserva = e.patrimonioFundo * (state.config.reservaPct / 100);
   const capacidadeRecompra = Math.floor(reserva / e.valorCota);
-  const coberturaPct = distrib > 0 ? Math.min(100, (capacidadeRecompra / distrib) * 100) : 100;
+  const pendentes = (state.pagamentosPendentes || []).filter(p => p.status === 'pendente');
+  const totalPendente = pendentes.reduce((s, p) => s + p.valorLiquido, 0);
   document.getElementById('overview-tesouraria').innerHTML = `
-    <div class="scenario-row"><span class="k">Cotas em tesouraria</span><span class="v">${fmtNum(tesouraria)} (${fmtBRL0(tesouraria * e.valorCota)})</span></div>
-    <div class="scenario-row"><span class="k">Reserva de recompra (${state.config.reservaPct}% do patrimônio)</span><span class="v">${fmtBRL0(reserva)}</span></div>
+    <div class="scenario-row"><span class="k">Reserva da Empresa (p/ bonificar)</span><span class="v">${fmtNum(reservaEmp)} cotas · ${fmtBRL0(reservaEmp * e.valorCota)}</span></div>
+    <div class="scenario-row"><span class="k">Tesouraria do Fundo (p/ recompra)</span><span class="v">${fmtNum(tesFundo)} cotas · ${fmtBRL0(tesFundo * e.valorCota)}</span></div>
+    <div class="scenario-row"><span class="k">Caixa de recompra (${state.config.reservaPct}% do patrimônio)</span><span class="v">${fmtBRL0(reserva)}</span></div>
     <div class="scenario-row"><span class="k">Capacidade de recompra imediata</span><span class="v">${fmtNum(capacidadeRecompra)} cotas</span></div>
-    <div class="scenario-row total"><span class="k">Cobertura das cotas distribuídas</span><span class="v">${coberturaPct.toFixed(0)}%</span></div>
-    <p class="hint" style="margin-top:10px;">A reserva garante caixa para recomprar cotas de quem sai, sem depender do lucro do mês. Cotas recompradas voltam à tesouraria e ficam disponíveis para bonificar novos talentos.</p>
+    ${pendentes.length ? `<div class="scenario-row total"><span class="k">Pagamentos de saída pendentes</span><span class="v">${pendentes.length} · ${fmtBRL0(totalPendente)}</span></div>` : `<div class="scenario-row total"><span class="k">Pagamentos de saída pendentes</span><span class="v">nenhum</span></div>`}
+    <p class="hint" style="margin-top:10px;">A <strong>Empresa</strong> detém cotas para bonificar funcionários; o <strong>Fundo</strong> guarda cotas para recomprar quem sai. O caixa de recompra garante o pagamento (em até ${state.config.prazoPagamentoDias} dias) sem depender do lucro do mês. Detalhes na aba <strong>Regras do Fundo</strong>.</p>
   `;
 
   renderOverviewAreas(e.valorCota, distrib);
@@ -827,6 +880,10 @@ function renderConfig() {
   document.getElementById('cfg-irrf').value = c.irrfPct;
   document.getElementById('cfg-reserva').value = c.reservaPct;
   document.getElementById('cfg-concentracao').value = c.limiteConcentracaoPct;
+  document.getElementById('cfg-prazoPagamento').value = c.prazoPagamentoDias;
+  document.getElementById('cfg-reservaEmpresa').value = state.reservaEmpresa || 0;
+  const poolInfo = document.getElementById('cfg-pools-out');
+  if (poolInfo) poolInfo.textContent = `Distribuídas ${fmtNum(totalDistribuido())} + Reserva Empresa ${fmtNum(state.reservaEmpresa || 0)} + Tesouraria Fundo ${fmtNum(state.tesourariaFundo || 0)} = ${fmtNum(totalDistribuido() + (state.reservaEmpresa||0) + (state.tesourariaFundo||0))} de ${fmtNum(c.totalCotas)} cotas.`;
 
   const valuationBase = c.lucroMensal * 12 * c.multiplo;
   const participacaoBase = valuationBase * (c.participacaoPct / 100);
@@ -853,7 +910,8 @@ function lerConfigDosInputs() {
     limiteCompraMes: Number(document.getElementById('cfg-limiteCompra').value) || 0,
     irrfPct: Number(document.getElementById('cfg-irrf').value) || 0,
     reservaPct: Number(document.getElementById('cfg-reserva').value) || 0,
-    limiteConcentracaoPct: Number(document.getElementById('cfg-concentracao').value) || 100
+    limiteConcentracaoPct: Number(document.getElementById('cfg-concentracao').value) || 100,
+    prazoPagamentoDias: Number(document.getElementById('cfg-prazoPagamento').value) || 60
   };
 }
 
@@ -1251,19 +1309,23 @@ function fecharMes() {
   let totCotasFolha = 0, totCotasReinvestidas = 0;
 
   state.cotistas.forEach(c => {
-    // 1. Bonificação aprovada pelos líderes
-    const bonus = (c.papel === 'colaborador' && c.liderId) ? (getAlocLider(c.liderId)[c.id] || 0) : 0;
+    // 1. Bonificação aprovada pelos líderes — cotas saem da Reserva da Empresa
+    let bonus = (c.papel === 'colaborador' && c.liderId) ? (getAlocLider(c.liderId)[c.id] || 0) : 0;
     if (bonus > 0) {
-      c.cotas += bonus;
-      c.cotasBonificadas += bonus;
-      c.historico.push({ mes: state.mesAtual, tipo: 'bonificacao', qtd: bonus, valor: 0, desc: 'Bonificação por performance' });
+      bonus = concederBonificacao(bonus);
+      if (bonus > 0) {
+        c.cotas += bonus;
+        c.cotasBonificadas += bonus;
+        c.historico.push({ mes: state.mesAtual, tipo: 'bonificacao', qtd: bonus, valor: 0, desc: 'Bonificação por performance (Reserva da Empresa)' });
+      }
     }
 
-    // 2. Plano do investidor: compra automática via desconto em folha
+    // 2. Plano do investidor: compra automática via desconto em folha (emissão dos pools)
     if (c.planoMensal > 0) {
       const jaComprado = c.compradoNoMes[state.mesAtual] || 0;
       let qtd = Math.floor(c.planoMensal / valorCota);
       qtd = Math.min(qtd, state.config.limiteCompraMes - jaComprado, margemCompra(c));
+      qtd = emitirCotas(qtd);
       if (qtd > 0) {
         const custo = qtd * valorCota;
         c.cotas += qtd;
@@ -1286,6 +1348,7 @@ function fecharMes() {
         c.creditoReinvestimento = (c.creditoReinvestimento || 0) + dividendo;
         let qtdR = Math.floor(c.creditoReinvestimento / valorCota);
         qtdR = Math.min(qtdR, margemCompra(c));
+        qtdR = emitirCotas(qtdR);
         if (qtdR > 0) {
           const custoR = qtdR * valorCota;
           c.cotas += qtdR;
@@ -1309,16 +1372,39 @@ function fecharMes() {
   renderAll();
 }
 
-/* Executa de verdade o desligamento: recompra as cotas a mercado e devolve à tesouraria */
-function processarSaida(cotistaId) {
+/* Executa o desligamento: recompra as cotas a mercado seguindo a cascata de
+   prioridade e devolve ao pool do absorvedor. Pagamento em até prazoPagamentoDias.
+   absorvedor: 'empresa' (Reserva da Empresa) ou 'fundo' (Tesouraria do Fundo). */
+function processarSaida(cotistaId, absorvedor = 'empresa') {
   const c = getCotista(cotistaId);
   if (!c) return;
   const r = calcSaidaScenario(c);
+  const cotasRecompradas = c.cotas;
+
+  // devolve as cotas ao pool de quem recomprou
+  devolverCotas(cotasRecompradas, absorvedor);
+
+  // registra a obrigação de pagamento (prazo em meses ≈ dias/30)
+  const prazoMeses = Math.max(1, Math.round(state.config.prazoPagamentoDias / 30));
+  state.pagamentosPendentes.push({
+    id: (state.nextListingId = (state.nextListingId || 1010) + 1),
+    cotistaNome: c.nome,
+    cotas: cotasRecompradas,
+    valorLiquido: Math.round(r.valorLiquido),
+    absorvedor,
+    mesSaida: state.mesAtual,
+    mesLimite: state.mesAtual + prazoMeses,
+    status: 'pendente'
+  });
+
   state.cotistas = state.cotistas.filter(x => x.id !== c.id);
   if (state.portalSelId === c.id) state.portalSelId = state.cotistas[0]?.id;
   if (state.saidaSelId === c.id) state.saidaSelId = state.cotistas[0]?.id;
+  // remove anúncios do vendedor que saiu
+  state.mercado.forEach(l => { if (l.vendedorId === c.id && l.status === 'ativo') l.status = 'cancelado'; });
   persist();
-  toast(`${c.nome} desligado(a). ${fmtNum(r.totalCotas)} cotas recompradas por ${fmtBRL0(r.valorLiquido)} líquidos e devolvidas à tesouraria.`);
+  const quem = absorvedor === 'empresa' ? 'Empresa' : 'Fundo';
+  toast(`${c.nome} desligado(a). ${fmtNum(cotasRecompradas)} cotas recompradas pela ${quem} por ${fmtBRL0(r.valorLiquido)} — pagamento em até ${state.config.prazoPagamentoDias} dias.`);
   renderAll();
 }
 
@@ -1455,15 +1541,113 @@ function renderSaida() {
       <div class="scenario-row"><span class="k">IRRF (${state.config.irrfPct}% sobre o ganho)</span><span class="v">− ${fmtBRL(r.imposto)}</span></div>
       <div class="scenario-row total"><span class="k">Valor líquido recebido</span><span class="v">${fmtBRL(r.valorLiquido)}</span></div>
     </div>
-    <p class="hint" style="margin-top:14px;">Sem regra de vesting: independente do tempo de casa, ao sair o fundo recompra 100% das cotas do cotista pelo valor de mercado do momento, com IRRF de ${state.config.irrfPct}% sobre o ganho de capital (se houver).</p>
-    <button class="btn primary full" id="btn-processar-saida" style="margin-top:16px;">Processar Desligamento ✓</button>
-    <p class="hint" style="margin-top:8px; text-align:center;">Executa a recompra de verdade: o cotista sai do fundo e as ${fmtNum(c.cotas)} cotas voltam à tesouraria.</p>
+    <p class="hint" style="margin-top:14px;">Sem regra de vesting: independente do tempo de casa, ao sair o cotista tem 100% das cotas recompradas pelo valor de mercado do momento, com IRRF de ${state.config.irrfPct}% sobre o ganho de capital (se houver).</p>
+
+    <div class="m-card" style="margin-top:16px;">
+      <h3 style="margin-bottom:10px;">Cascata de Recompra</h3>
+      <div class="waterfall">
+        <div class="wf-step"><span class="wf-n">1</span><div><strong>Funcionários ativos</strong><p>As cotas são ofertadas primeiro aos colegas, pelo Mercado de Cotas. Quem quiser, compra direto.</p></div></div>
+        <div class="wf-step"><span class="wf-n">2</span><div><strong>Empresa</strong><p>Se ninguém comprar, a empresa recompra para a Reserva e reusa as cotas em novas bonificações.</p></div></div>
+        <div class="wf-step last"><span class="wf-n">3</span><div><strong>Fundo</strong><p>Em último caso, o fundo recompra para a Tesouraria, garantindo a liquidez de quem sai.</p></div></div>
+      </div>
+      <p class="hint" style="margin-top:6px;">Pagamento em até <strong>${state.config.prazoPagamentoDias} dias</strong> a partir do desligamento.</p>
+      <div class="citem-actions" style="margin-top:14px;">
+        <button class="btn sm ghost full" id="btn-saida-empresa">Empresa recompra</button>
+        <button class="btn sm primary full" id="btn-saida-fundo">Fundo recompra</button>
+      </div>
+      <button class="btn ghost full" id="btn-saida-mercado" style="margin-top:10px;">Ofertar aos funcionários (Mercado)</button>
+    </div>
   `;
 
-  document.getElementById('btn-processar-saida').addEventListener('click', () => {
-    if (!confirm(`Processar o desligamento de ${c.nome}? O fundo recompra ${fmtNum(c.cotas)} cotas por ${fmtBRL0(r.valorLiquido)} líquidos e as devolve à tesouraria.`)) return;
-    processarSaida(c.id);
-  });
+  const exec = (absorvedor) => {
+    const quem = absorvedor === 'empresa' ? 'a Empresa' : 'o Fundo';
+    if (!confirm(`Processar o desligamento de ${c.nome}? ${quem} recompra ${fmtNum(c.cotas)} cotas por ${fmtBRL0(r.valorLiquido)} líquidos, com pagamento em até ${state.config.prazoPagamentoDias} dias.`)) return;
+    processarSaida(c.id, absorvedor);
+  };
+  document.getElementById('btn-saida-empresa').addEventListener('click', () => exec('empresa'));
+  document.getElementById('btn-saida-fundo').addEventListener('click', () => exec('fundo'));
+  document.getElementById('btn-saida-mercado').addEventListener('click', () => abrirModalAnuncio(c.id));
+}
+
+/* ============================================================
+   REGRAS DO FUNDO
+   ============================================================ */
+function renderRegras() {
+  const c = state.config;
+  const e = estadoNoMes(state.mesAtual);
+  const reservaEmp = state.reservaEmpresa || 0;
+  const tesFundo = state.tesourariaFundo || 0;
+  const maxCota = maxCotasPorCotista();
+  const pendentes = (state.pagamentosPendentes || []).filter(p => p.status === 'pendente');
+
+  document.getElementById('regras-body').innerHTML = `
+    <div class="m-card">
+      <h3 style="margin-bottom:10px;">De quem são as cotas</h3>
+      <p style="font-size:13px; line-height:1.65; color:var(--ink-dim);">Toda cota do fundo pertence a um de três lugares. A soma é sempre igual ao total emitido — nada aparece nem some do nada.</p>
+      <div class="rule-pools">
+        <div class="rp"><span class="rp-dot" style="background:var(--gold);"></span><div><strong>Cotistas</strong><span>${fmtNum(totalDistribuido())} cotas com funcionários</span></div></div>
+        <div class="rp"><span class="rp-dot" style="background:var(--olive);"></span><div><strong>Reserva da Empresa</strong><span>${fmtNum(reservaEmp)} cotas — a empresa usa para bonificar quem performa</span></div></div>
+        <div class="rp"><span class="rp-dot" style="background:#6f9bb0;"></span><div><strong>Tesouraria do Fundo</strong><span>${fmtNum(tesFundo)} cotas — o fundo usa para recomprar quem sai</span></div></div>
+      </div>
+      <div class="scenario-row total" style="margin-top:6px;"><span class="k">Total emitido</span><span class="v">${fmtNum(c.totalCotas)} cotas</span></div>
+    </div>
+
+    <div class="m-card">
+      <h3 style="margin-bottom:4px;">Dinheiro x cotas</h3>
+      <p class="hint" style="margin-bottom:8px;">Não confunda as duas coisas:</p>
+      <div class="scenario-row"><span class="k">Caixa de recompra (dinheiro)</span><span class="v">${fmtBRL0(e.patrimonioFundo * (c.reservaPct / 100))}</span></div>
+      <div class="scenario-row"><span class="k">Cotas em reserva/tesouraria</span><span class="v">${fmtNum(reservaEmp + tesFundo)} cotas</span></div>
+      <p class="hint" style="margin-top:8px;">A <strong>Tesouraria/Reserva</strong> guarda <strong>cotas</strong> (para bonificar e recomprar). O <strong>Caixa de recompra</strong> é <strong>dinheiro</strong> (${c.reservaPct}% do patrimônio) separado para pagar quem sai. São coisas diferentes.</p>
+    </div>
+
+    <div class="m-card">
+      <h3 style="margin-bottom:14px;">Como uma cota se move</h3>
+      <div class="flow">
+        <div class="flow-step"><span class="flow-n">1</span><div><strong>Bonificação</strong><p>A empresa distribui cotas da <strong>Reserva da Empresa</strong> aos funcionários que performam (via líderes, no Ciclo Mensal). Limite de ${c.cotasLiderMes} cotas/líder por mês.</p></div></div>
+        <div class="flow-step"><span class="flow-n">2</span><div><strong>Compra</strong><p>O funcionário compra cotas por emissão primária (saem da Tesouraria do Fundo, depois da Reserva). Limite de ${c.limiteCompraMes} cotas/mês por pessoa, via folha ou avulsa.</p></div></div>
+        <div class="flow-step"><span class="flow-n">3</span><div><strong>Revenda entre colegas</strong><p>No <strong>Mercado de Cotas</strong>, um cotista anuncia e outro funcionário ativo compra, ao preço negociado. Cota vai de pessoa para pessoa, sem passar pelos pools.</p></div></div>
+        <div class="flow-step last"><span class="flow-n">4</span><div><strong>Recompra na saída</strong><p>Quem sai da empresa tem as cotas recompradas e devolvidas ao pool de quem recomprou. Segue a cascata de prioridade abaixo.</p></div></div>
+      </div>
+    </div>
+
+    <div class="m-card">
+      <h3 style="margin-bottom:6px;">Quem recompra: ordem de prioridade</h3>
+      <p class="hint" style="margin-bottom:12px;">Quando alguém quer vender ou sai da empresa, as cotas são oferecidas nesta ordem:</p>
+      <div class="waterfall">
+        <div class="wf-step"><span class="wf-n">1</span><div><strong>Funcionários ativos</strong><p>Direito de preferência. As cotas aparecem no Mercado de Cotas para os colegas comprarem primeiro.</p></div></div>
+        <div class="wf-step"><span class="wf-n">2</span><div><strong>Empresa</strong><p>Se ninguém comprar, a empresa recompra para a Reserva e reaproveita em novas bonificações.</p></div></div>
+        <div class="wf-step last"><span class="wf-n">3</span><div><strong>Fundo</strong><p>Em último caso, o fundo recompra para a Tesouraria — é a garantia de liquidez de quem sai.</p></div></div>
+      </div>
+    </div>
+
+    <div class="m-card">
+      <h3 style="margin-bottom:10px;">Regras de saída da empresa</h3>
+      <div class="diff-list">
+        <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Recompra obrigatória</strong><span>Saiu da empresa, as 100% das cotas são recompradas — o fundo é exclusivo de funcionários ativos.</span></div></div>
+        <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Preço justo (marcação a mercado)</strong><span>Recompra pelo valor patrimonial da cota no dia da saída. O funcionário leva a valorização do período.</span></div></div>
+        <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Pagamento em até ${c.prazoPagamentoDias} dias</strong><span>A empresa/fundo tem até ${c.prazoPagamentoDias} dias para pagar a recompra, sem travar o caixa operacional.</span></div></div>
+        <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>IRRF de ${c.irrfPct}% sobre o ganho</strong><span>Incide só sobre o ganho de capital (diferença entre o que pagou e o que recebe).</span></div></div>
+      </div>
+      ${pendentes.length ? `
+        <div class="group-label" style="margin:16px 0 8px;"><span>Pagamentos de saída pendentes</span><span class="count">${pendentes.length}</span></div>
+        <div class="clist">
+          ${pendentes.map(p => `
+            <div class="citem"><div class="citem-top">
+              <div><span class="citem-name">${p.cotistaNome}</span><div class="citem-meta">${p.absorvedor === 'empresa' ? 'Empresa' : 'Fundo'} · saiu ${fmtMes(p.mesSaida)} · pagar até ${fmtMes(p.mesLimite)}</div></div>
+              <div class="citem-val"><span class="big">${fmtBRL0(p.valorLiquido)}</span><span class="small">${fmtNum(p.cotas)} cotas</span></div>
+            </div></div>`).join('')}
+        </div>` : ''}
+    </div>
+
+    <div class="m-card">
+      <h3 style="margin-bottom:10px;">Proteções do fundo</h3>
+      <div class="scenario-row"><span class="k">Concentração máxima por cotista</span><span class="v">${c.limiteConcentracaoPct}% · ${fmtNum(maxCota)} cotas</span></div>
+      <div class="scenario-row"><span class="k">Caixa de recompra</span><span class="v">${c.reservaPct}% do patrimônio</span></div>
+      <div class="scenario-row"><span class="k">Compra por funcionário / mês</span><span class="v">${fmtNum(c.limiteCompraMes)} cotas</span></div>
+      <div class="scenario-row"><span class="k">Bonificação por líder / mês</span><span class="v">${fmtNum(c.cotasLiderMes)} cotas</span></div>
+      <p class="hint" style="margin-top:10px;">Nenhuma pessoa pode concentrar cotas demais, e o fundo mantém dinheiro em caixa para honrar recompras. Ajuste tudo na aba <strong>Configuração do Fundo</strong>.</p>
+    </div>
+  `;
 }
 
 /* ============================================================
@@ -1646,10 +1830,11 @@ function openMaisSheet() {
     <button class="sheet-item" data-go="evolucao"><span class="ic">05</span>Evolução &amp; Projeção</button>
     <button class="sheet-item" data-go="mercado"><span class="ic">06</span>Mercado de Cotas</button>
     <button class="sheet-item" data-go="saida"><span class="ic">07</span>Saída &amp; Recompra</button>
-    <button class="sheet-item" data-go="config"><span class="ic">08</span>Configuração do Fundo</button>
-    <button class="sheet-item" data-go="fip"><span class="ic">09</span>O Que É um FIP?</button>
-    <button class="sheet-item" data-go="proposta"><span class="ic">10</span>Proposta Comercial</button>
-    <button class="sheet-item" data-go="concorrentes"><span class="ic">11</span>Estudo de Concorrentes</button>
+    <button class="sheet-item" data-go="regras"><span class="ic">08</span>Regras do Fundo</button>
+    <button class="sheet-item" data-go="config"><span class="ic">09</span>Configuração do Fundo</button>
+    <button class="sheet-item" data-go="fip"><span class="ic">10</span>O Que É um FIP?</button>
+    <button class="sheet-item" data-go="proposta"><span class="ic">11</span>Proposta Comercial</button>
+    <button class="sheet-item" data-go="concorrentes"><span class="ic">12</span>Estudo de Concorrentes</button>
   </div>`;
   openSheet(`<h3>Mais Opções</h3>`, itemsHtml, (root) => {
     root.querySelectorAll('[data-go]').forEach(b => {
@@ -1686,6 +1871,12 @@ function wireGlobalEvents() {
 
   document.getElementById('cfg-aplicar').addEventListener('click', () => {
     state.config = lerConfigDosInputs();
+    // Reserva da Empresa (cotas) — o resto não-distribuído vira Tesouraria do Fundo
+    const naoDistribuido = Math.max(0, state.config.totalCotas - totalDistribuido());
+    let reservaEmp = Number(document.getElementById('cfg-reservaEmpresa').value) || 0;
+    reservaEmp = Math.max(0, Math.min(reservaEmp, naoDistribuido));
+    state.reservaEmpresa = reservaEmp;
+    state.tesourariaFundo = naoDistribuido - reservaEmp;
     persist();
     rebuildEstados();
     renderAll();
