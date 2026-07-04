@@ -584,6 +584,12 @@ label.drip-toggle{
 .drip-toggle .txt{font-size:12px; line-height:1.55; color:var(--ink-dim);}
 .drip-toggle .txt strong{color:var(--ink); font-size:12.5px;}
 
+/* ===== Legenda de gráfico (preço x NAV) ===== */
+.chart-legend{display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; padding-left:4px;}
+.chart-legend .lg{display:inline-flex; align-items:center; gap:7px; font-size:11px; color:var(--ink-dim);}
+.chart-legend .ln{display:inline-block; width:18px; height:0; border-top:2px solid var(--gold-bright);}
+.chart-legend .ln.dash{border-top:2px dashed var(--ink-dim);}
+
 /* ===== Regras do Fundo ===== */
 .rule-pools{display:flex; flex-direction:column; gap:12px; margin:14px 0 6px;}
 .rule-pools .rp{display:flex; gap:11px; align-items:flex-start;}

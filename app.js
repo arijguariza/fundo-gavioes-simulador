@@ -4,7 +4,7 @@
    Tudo em memória / localStorage.
    ============================================================ */
 
-const STORAGE_KEY = 'gavioes_fundo_sim_v16';
+const STORAGE_KEY = 'gavioes_fundo_sim_v17';
 const HORIZON_MESES = 480; // 40 anos de estados pré-computados
 
 const DEFAULT_CONFIG = {
@@ -196,13 +196,27 @@ function seedMercado(cotistas, valorCotaRef) {
   }));
 }
 
+function seedCotacao(estados, mesAtual) {
+  // Histórico de cotação (preço de mercado) oscilando em ágio/deságio em torno do NAV
+  const hist = [];
+  const start = Math.max(0, mesAtual - 11);
+  for (let m = start; m <= mesAtual; m++) {
+    const nav = estados[Math.min(m, estados.length - 1)].valorCota;
+    const osc = Math.sin(m * 0.9) * 0.045 + Math.cos(m * 1.7) * 0.02; // ±~6%
+    hist.push({ mes: m, nav, preco: Math.round(nav * (1 + osc) * 100) / 100 });
+  }
+  return hist;
+}
+
 function freshState() {
   const cotistas = seedCotistas();
-  const valorCotaRef = buildEstados(DEFAULT_CONFIG, 30)[30].valorCota;
+  const estadosRef = buildEstados(DEFAULT_CONFIG, 30);
+  const valorCotaRef = estadosRef[30].valorCota;
   const distribuido = cotistas.reduce((s, c) => s + c.cotas, 0);
   const naoDistribuido = DEFAULT_CONFIG.totalCotas - distribuido;
   const reservaEmpresa = Math.round(naoDistribuido * 0.62); // empresa detém a maior parte p/ bonificar
   const tesourariaFundo = naoDistribuido - reservaEmpresa;   // fundo guarda o resto p/ recompra
+  const cotacaoHist = seedCotacao(estadosRef, 30);
   return {
     config: { ...DEFAULT_CONFIG },
     cotistas,
@@ -210,6 +224,8 @@ function freshState() {
     reservaEmpresa,
     tesourariaFundo,
     pagamentosPendentes: [],
+    precoMercado: cotacaoHist[cotacaoHist.length - 1].preco,
+    cotacaoHist,
     mesAtual: 30,
     nextId: 107,
     nextListingId: 1010,
@@ -252,6 +268,12 @@ function loadState() {
           parsed.tesourariaFundo = naoDistribuido - parsed.reservaEmpresa;
         }
         if (!Array.isArray(parsed.pagamentosPendentes)) parsed.pagamentosPendentes = [];
+        // Cotação de mercado (preço x NAV)
+        if (!Array.isArray(parsed.cotacaoHist) || parsed.precoMercado == null) {
+          const est = buildEstados(parsed.config, parsed.mesAtual + 1);
+          parsed.cotacaoHist = seedCotacao(est, parsed.mesAtual);
+          parsed.precoMercado = parsed.cotacaoHist[parsed.cotacaoHist.length - 1].preco;
+        }
         return parsed;
       }
     }
@@ -345,6 +367,18 @@ function concederBonificacao(qtd) {
 function devolverCotas(qtd, destino) {
   if (destino === 'empresa') state.reservaEmpresa += qtd;
   else state.tesourariaFundo += qtd;
+}
+
+/* Ágio (>0) ou deságio (<0) da cotação de mercado sobre o valor patrimonial (NAV), em % */
+function agioDesagioPct() {
+  const nav = estadoNoMes(state.mesAtual).valorCota;
+  if (!nav) return 0;
+  return ((state.precoMercado - nav) / nav) * 100;
+}
+
+/* Cotas atualmente ofertadas à venda no mercado (pressão de oferta) */
+function ofertaMercado() {
+  return (state.mercado || []).filter(l => l.status === 'ativo').reduce((s, l) => s + l.cotas, 0);
 }
 
 /* Sem vesting: o fundo recompra as cotas pelo valor de mercado no momento da saída,
@@ -465,8 +499,9 @@ function openCotistaPicker(currentId, onPick, excludeId, titulo) {
 
 function svgLineChart(points, opts = {}) {
   const width = opts.width || 540, height = opts.height || 190, pad = opts.pad || 30;
-  const ys = points.map(p => p.y);
-  const minY = Math.min(...ys) * 0.96, maxY = Math.max(...ys) * 1.04;
+  const refPoints = opts.refPoints || null; // série de referência (linha tracejada)
+  const allYs = points.map(p => p.y).concat(refPoints ? refPoints.map(p => p.y) : []);
+  const minY = Math.min(...allYs) * 0.96, maxY = Math.max(...allYs) * 1.04;
   const xToPx = (i) => pad + (i / (points.length - 1)) * (width - pad * 2);
   const yToPx = (y) => height - pad - ((y - minY) / (maxY - minY || 1)) * (height - pad * 1.4);
   const linePts = points.map((p, i) => `${xToPx(i)},${yToPx(p.y)}`).join(' ');
@@ -481,6 +516,11 @@ function svgLineChart(points, opts = {}) {
     return `<text x="${xToPx(i)}" y="${height - 8}" text-anchor="middle">${p.label}</text>`;
   }).join('');
   const lastPt = points[points.length - 1];
+  let refLine = '';
+  if (refPoints && refPoints.length === points.length) {
+    const rp = refPoints.map((p, i) => `${xToPx(i)},${yToPx(p.y)}`).join(' ');
+    refLine = `<polyline points="${rp}" fill="none" stroke="#a39c89" stroke-width="1.6" stroke-dasharray="5 4" opacity="0.75"></polyline>`;
+  }
   return `
   <svg class="chart-svg-line" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
     <defs><linearGradient id="goldFade" x1="0" y1="0" x2="0" y2="1">
@@ -488,6 +528,7 @@ function svgLineChart(points, opts = {}) {
     </linearGradient></defs>
     ${gridLines}
     <polygon class="area" points="${areaPts}"></polygon>
+    ${refLine}
     <polyline class="line" points="${linePts}"></polyline>
     <circle class="pt" cx="${xToPx(points.length - 1)}" cy="${yToPx(lastPt.y)}" r="4.5"></circle>
     ${xLabels}
@@ -741,7 +782,8 @@ function renderOverview() {
 
   document.getElementById('overview-kpis').innerHTML = `
     <div class="kpi-card"><span class="lbl">Valuation Academia</span><span class="val">${fmtShort(e.valuation)}</span><span class="sub">múltiplo ${state.config.multiplo}x</span></div>
-    <div class="kpi-card"><span class="lbl">Valor da Cota</span><span class="val">${fmtBRL(e.valorCota)}</span><span class="sub ${variacaoCota >= 0 ? 'pos' : 'neg'}">${variacaoCota >= 0 ? '+' : ''}${fmtPct(variacaoCota)}</span></div>
+    <div class="kpi-card"><span class="lbl">Valor Patrimonial (NAV)</span><span class="val">${fmtBRL(e.valorCota)}</span><span class="sub ${variacaoCota >= 0 ? 'pos' : 'neg'}">${variacaoCota >= 0 ? '+' : ''}${fmtPct(variacaoCota)}</span></div>
+    <div class="kpi-card"><span class="lbl">Preço de Mercado</span><span class="val">${fmtBRL(state.precoMercado)}</span><span class="sub ${agioDesagioPct() > 0.5 ? 'neg' : agioDesagioPct() < -0.5 ? 'pos' : ''}">${Math.abs(agioDesagioPct()) < 0.5 ? 'no NAV' : (agioDesagioPct() > 0 ? 'ágio ' : 'deságio ') + fmtPct(Math.abs(agioDesagioPct()))}</span></div>
     <div class="kpi-card"><span class="lbl">Patrimônio do Fundo</span><span class="val">${fmtShort(e.patrimonioFundo)}</span><span class="sub">${fmtPct(state.config.participacaoPct, 0)} da academia</span></div>
     <div class="kpi-card"><span class="lbl">Cotistas Ativos</span><span class="val">${state.cotistas.length}</span><span class="sub">${state.cotistas.filter(c => c.papel === 'lider').length} líderes</span></div>
   `;
@@ -1363,6 +1405,21 @@ function fecharMes() {
   });
 
   state.mesAtual += 1;
+
+  // Dinâmica da cotação de mercado no novo mês:
+  // NAV é a gravidade (reversão à média) + pressão de oferta/demanda, dentro de banda ±20%.
+  const navNovo = estadoNoMes(state.mesAtual).valorCota;
+  const oferta = ofertaMercado();
+  const demanda = totCotasFolha + totCotasReinvestidas; // pressão compradora estrutural do mês
+  const baseDist = Math.max(1, totalDistribuido());
+  const pressao = Math.max(-0.1, Math.min(0.1, (demanda - oferta) / baseDist)); // normalizada e limitada
+  let p = state.precoMercado + (navNovo - state.precoMercado) * 0.30; // reversão ao NAV
+  p = p * (1 + 0.6 * pressao);                                        // oferta x demanda
+  p = Math.max(navNovo * 0.80, Math.min(navNovo * 1.20, p));          // banda ±20%
+  state.precoMercado = Math.round(p * 100) / 100;
+  state.cotacaoHist.push({ mes: state.mesAtual, nav: navNovo, preco: state.precoMercado });
+  if (state.cotacaoHist.length > 24) state.cotacaoHist = state.cotacaoHist.slice(-24);
+
   state.ciclo = { step: 1, alocacoes: {}, lucroMes: state.config.lucroMensal, aprovado: false };
   persist();
   const extras = [];
@@ -1490,8 +1547,13 @@ function comprarNoMercado(listingId, compradorId) {
   l.cotas -= qtd;
   if (l.cotas <= 0) l.status = 'vendido';
 
+  // Última cotação de mercado = preço do último negócio realizado
+  state.precoMercado = l.precoPorCota;
+
   persist();
-  toast(`${comprador.nome} comprou ${fmtNum(qtd)} cotas de ${vendedor.nome} por ${fmtBRL0(custo)}.`);
+  const ad = agioDesagioPct();
+  const adTxt = Math.abs(ad) < 0.5 ? 'no valor patrimonial' : ad > 0 ? `ágio de ${fmtPct(ad)}` : `deságio de ${fmtPct(Math.abs(ad))}`;
+  toast(`${comprador.nome} comprou ${fmtNum(qtd)} cotas de ${vendedor.nome} por ${fmtBRL0(custo)} — cotação ${adTxt}.`);
   renderAll();
 }
 
@@ -1601,6 +1663,20 @@ function renderRegras() {
     </div>
 
     <div class="m-card">
+      <h3 style="margin-bottom:4px;">Valor patrimonial x Preço de mercado</h3>
+      <p class="hint" style="margin-bottom:8px;">Como em qualquer FIP ou FII fechado, a cota tem dois valores:</p>
+      <div class="scenario-row"><span class="k">Valor patrimonial (NAV) hoje</span><span class="v">${fmtBRL(e.valorCota)}</span></div>
+      <div class="scenario-row"><span class="k">Preço de mercado (última cotação)</span><span class="v">${fmtBRL(state.precoMercado)}</span></div>
+      <div class="scenario-row total"><span class="k">Ágio / deságio</span><span class="v">${Math.abs(agioDesagioPct()) < 0.5 ? 'no par' : (agioDesagioPct() > 0 ? '+' : '') + fmtPct(agioDesagioPct())}</span></div>
+      <div class="diff-list" style="margin-top:14px;">
+        <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Comprar e vender NÃO muda o valor patrimonial</strong><span>Emissão e recompra acontecem ao NAV: entra/sai dinheiro e cota na mesma proporção. O NAV só muda com o desempenho do ativo (a academia valorizando e distribuindo resultado).</span></div></div>
+        <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Comprar e vender MUDA o preço de mercado</strong><span>No mercado secundário, oferta e demanda empurram a cotação para ágio (mais compradores) ou deságio (mais vendedores). É o preço que um colega paga a outro.</span></div></div>
+        <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>O preço gravita de volta ao NAV</strong><span>No longo prazo o preço de mercado tende a acompanhar o valor patrimonial — o ágio/deságio é o "humor" de curto prazo do mercado interno.</span></div></div>
+      </div>
+      <p class="hint" style="margin-top:10px;">Na prática: a <strong>recompra na saída</strong> é sempre pelo valor patrimonial (justo e previsível). O <strong>ágio/deságio</strong> vive só no Mercado de Cotas, entre colegas.</p>
+    </div>
+
+    <div class="m-card">
       <h3 style="margin-bottom:14px;">Como uma cota se move</h3>
       <div class="flow">
         <div class="flow-step"><span class="flow-n">1</span><div><strong>Bonificação</strong><p>A empresa distribui cotas da <strong>Reserva da Empresa</strong> aos funcionários que performam (via líderes, no Ciclo Mensal). Limite de ${c.cotasLiderMes} cotas/líder por mês.</p></div></div>
@@ -1661,15 +1737,35 @@ function renderMercado() {
   const precos = ativos.map(l => l.precoPorCota);
   const faixa = precos.length ? `${fmtBRL(Math.min(...precos))} – ${fmtBRL(Math.max(...precos))}` : '—';
 
+  const ad = agioDesagioPct();
+  const adCls = ad > 0.5 ? 'neg' : ad < -0.5 ? 'pos' : ''; // ágio = preço acima (rust), deságio = abaixo (olive)
+  const adTxt = Math.abs(ad) < 0.5 ? 'no valor patrimonial' : ad > 0 ? `ágio ${fmtPct(ad)}` : `deságio ${fmtPct(Math.abs(ad))}`;
+
+  const hist = state.cotacaoHist || [];
+  const precoPts = hist.map(h => ({ y: h.preco, label: `M${h.mes}` }));
+  const navPts = hist.map(h => ({ y: h.nav, label: `M${h.mes}` }));
+
   document.getElementById('mercado-resumo').innerHTML = `
     <div class="stat-grid">
-      <div class="kpi-card"><span class="lbl">Cotas à venda</span><span class="val">${fmtNum(totalCotasVenda)}</span><span class="sub">${ativos.length} anúncios ativos</span></div>
-      <div class="kpi-card"><span class="lbl">Valor de referência</span><span class="val">${fmtBRL(valorCota)}</span><span class="sub">patrimonial por cota</span></div>
-      <div class="kpi-card"><span class="lbl">Volume anunciado</span><span class="val">${fmtShort(volumeTotal)}</span><span class="sub">se tudo for vendido</span></div>
+      <div class="kpi-card"><span class="lbl">Preço de mercado</span><span class="val">${fmtBRL(state.precoMercado)}</span><span class="sub ${adCls}">${adTxt}</span></div>
+      <div class="kpi-card"><span class="lbl">Valor patrimonial (NAV)</span><span class="val">${fmtBRL(valorCota)}</span><span class="sub">definido pelo ativo</span></div>
+      <div class="kpi-card"><span class="lbl">Cotas à venda</span><span class="val">${fmtNum(totalCotasVenda)}</span><span class="sub">${ativos.length} anúncios · oferta</span></div>
       <div class="kpi-card"><span class="lbl">Faixa de preço</span><span class="val" style="font-size:13px;">${faixa}</span><span class="sub">min – máx pedido</span></div>
+    </div>
+    <div class="m-card" style="margin:12px 0 4px;">
+      <div class="panel-title"><h2>Cotação de Mercado</h2><span class="meta">preço x NAV</span></div>
+      <div id="mercado-cotacao-chart"></div>
+      <div class="chart-legend">
+        <span class="lg"><i class="ln gold"></i>Preço de mercado</span>
+        <span class="lg"><i class="ln dash"></i>Valor patrimonial (NAV)</span>
+      </div>
+      <p class="hint" style="margin-top:6px;">O preço de mercado flutua com oferta e demanda em <strong>ágio</strong> (acima) ou <strong>deságio</strong> (abaixo) do valor patrimonial — que é definido pelo desempenho do ativo, não pelos negócios. Igual a um fundo fechado (FIP/FII). Entenda em <strong>Regras do Fundo</strong>.</p>
     </div>
     <button class="btn primary full" id="btn-anunciar-mercado" style="margin-top:4px;">+ Anunciar cotas à venda</button>
   `;
+  if (precoPts.length > 1) {
+    document.getElementById('mercado-cotacao-chart').innerHTML = svgLineChart(precoPts, { height: 170, refPoints: navPts });
+  }
   document.getElementById('btn-anunciar-mercado').addEventListener('click', () => abrirModalAnuncio());
 
   const lista = document.getElementById('mercado-list');
