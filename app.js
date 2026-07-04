@@ -4,7 +4,7 @@
    Tudo em memória / localStorage.
    ============================================================ */
 
-const STORAGE_KEY = 'gavioes_fundo_sim_v14';
+const STORAGE_KEY = 'gavioes_fundo_sim_v15';
 const HORIZON_MESES = 480; // 40 anos de estados pré-computados
 
 const DEFAULT_CONFIG = {
@@ -178,12 +178,33 @@ function seedCotistas() {
   return [...lideres, ...colaboradores];
 }
 
+function seedMercado(cotistas, valorCotaRef) {
+  // Escolhe alguns cotistas com cotas suficientes para anunciar parte à venda,
+  // com preços variando em ágio/deságio em torno do valor patrimonial da cota.
+  const candidatos = cotistas.filter(c => c.cotas >= 6).sort((a, b) => b.cotas - a.cotas);
+  const picks = [candidatos[1], candidatos[4], candidatos[7], candidatos[11], candidatos[2], candidatos[15]].filter(Boolean);
+  const fatores = [1.05, 0.97, 1.10, 0.99, 1.03, 0.94]; // ágio (>1) ou deságio (<1)
+  const fracoes = [0.35, 0.5, 0.25, 0.6, 0.3, 0.45];
+  return picks.map((c, i) => ({
+    id: 1000 + i,
+    vendedorId: c.id,
+    cotas: Math.max(2, Math.round(c.cotas * fracoes[i])),
+    precoPorCota: Math.round(valorCotaRef * fatores[i] * 100) / 100,
+    mesAnuncio: 30 - (i % 6),
+    status: 'ativo'
+  }));
+}
+
 function freshState() {
+  const cotistas = seedCotistas();
+  const valorCotaRef = buildEstados(DEFAULT_CONFIG, 30)[30].valorCota;
   return {
     config: { ...DEFAULT_CONFIG },
-    cotistas: seedCotistas(),
+    cotistas,
+    mercado: seedMercado(cotistas, valorCotaRef),
     mesAtual: 30,
     nextId: 107,
+    nextListingId: 1010,
     activeView: 'portal',
     ciclo: { step: 1, alocacoes: {}, lucroMes: DEFAULT_CONFIG.lucroMensal, aprovado: false },
     portalSelId: 7,
@@ -213,6 +234,8 @@ function loadState() {
           if (c.reinvestirDividendos == null) c.reinvestirDividendos = false;
           if (c.creditoReinvestimento == null) c.creditoReinvestimento = 0;
         });
+        if (!Array.isArray(parsed.mercado)) parsed.mercado = [];
+        if (parsed.nextListingId == null) parsed.nextListingId = 1010;
         return parsed;
       }
     }
@@ -371,9 +394,10 @@ function openSheet(titleHtml, itemsHtml, onMount) {
 }
 function closeSheet() { document.getElementById('sheet-root').innerHTML = ''; }
 
-function openCotistaPicker(currentId, onPick) {
-  const lideres = state.cotistas.filter(c => c.papel === 'lider');
-  const colaboradores = state.cotistas.filter(c => c.papel === 'colaborador');
+function openCotistaPicker(currentId, onPick, excludeId, titulo) {
+  const base = state.cotistas.filter(c => c.id !== excludeId);
+  const lideres = base.filter(c => c.papel === 'lider');
+  const colaboradores = base.filter(c => c.papel === 'colaborador');
   const itemHtml = (c) => `
     <button class="sheet-item" data-pick="${c.id}">
       <span class="ic">${c.id === currentId ? '●' : '○'}</span>
@@ -383,7 +407,7 @@ function openCotistaPicker(currentId, onPick) {
     ${lideres.length ? `<div class="sheet-subhead">Líderes de Área</div>${lideres.map(itemHtml).join('')}` : ''}
     ${colaboradores.length ? `<div class="sheet-subhead">Colaboradores</div>${colaboradores.map(itemHtml).join('')}` : ''}
   </div>`;
-  openSheet(`<h3>Selecionar Cotista</h3>`, itemsHtml, (root) => {
+  openSheet(`<h3>${titulo || 'Selecionar Cotista'}</h3>`, itemsHtml, (root) => {
     root.querySelectorAll('[data-pick]').forEach(b => {
       b.addEventListener('click', () => { onPick(Number(b.dataset.pick)); closeSheet(); });
     });
@@ -446,6 +470,8 @@ function badgeTipo(tipo) {
   if (tipo === 'compra') return `<span class="badge neutral">COMPRA</span>`;
   if (tipo === 'dividendo') return `<span class="badge olive">DIVIDENDO</span>`;
   if (tipo === 'reinvestimento') return `<span class="badge olive">REINVESTIDO</span>`;
+  if (tipo === 'venda') return `<span class="badge rust">VENDA</span>`;
+  if (tipo === 'compra-mercado') return `<span class="badge neutral">COMPRA MERCADO</span>`;
   return tipo;
 }
 
@@ -463,6 +489,7 @@ function renderAll() {
   else if (v === 'evolucao') renderEvolucao();
   else if (v === 'portal') renderPortal();
   else if (v === 'saida') renderSaida();
+  else if (v === 'mercado') renderMercado();
 }
 
 function renderNav() {
@@ -498,6 +525,8 @@ function renderPortal() {
   const totalDividendos = c.historico.filter(h => h.tipo === 'dividendo').reduce((s, h) => s + h.valor, 0);
   const totalInvestido = c.valorPagoCompras || 0;
   const valorAtual = c.cotas * valorCotaAtual;
+  const cotasAnunciadasC = cotasAnunciadas(c.id);
+  const cotasLivresVenda = cotasDisponiveisVenda(c);
   const historicoOrdenado = [...c.historico].sort((a, b) => b.mes - a.mes)
     .filter(h => dentroDoPeriodo(h.mes, state.mesAtual, state.portalPeriodo));
 
@@ -539,6 +568,12 @@ function renderPortal() {
     </div>
 
     <div class="m-card">
+      <div class="panel-title"><h2>Vender no Mercado de Cotas</h2><span class="meta">liquidez</span></div>
+      <p class="hint" style="margin-bottom:12px;">Quer realizar parte do ganho sem sair da empresa? Você pode anunciar cotas para outro cotista comprar. Cotas livres para anunciar: <strong style="color:var(--ink);">${fmtNum(cotasLivresVenda)}</strong>${cotasAnunciadasC > 0 ? ` · <span style="color:var(--gold-bright);">${fmtNum(cotasAnunciadasC)} já anunciadas</span>` : ''}.</p>
+      <button class="btn primary full" id="btn-anunciar-portal" ${cotasLivresVenda <= 0 ? 'disabled' : ''}>Anunciar cotas à venda</button>
+    </div>
+
+    <div class="m-card">
       <div class="panel-title"><h2>Simular Dividendos Futuros</h2><span class="meta">projeção</span></div>
       <div class="field"><label>Lucro mensal projetado da academia (R$)</label><input type="number" id="sim-div-lucro" step="2000" value="${state.simDiv.lucro}"></div>
       <div class="field"><label>Horizonte (meses)</label><input type="number" id="sim-div-meses" min="1" max="60" step="1" value="${state.simDiv.meses}"></div>
@@ -559,7 +594,7 @@ function renderPortal() {
             <div class="citem">
               <div class="citem-top">
                 <div><span class="citem-name">${h.desc}</span><div class="citem-meta">${fmtMes(h.mes)}</div></div>
-                <div class="citem-val">${badgeTipo(h.tipo)}<span class="big" style="margin-top:4px;">${h.qtd != null ? '+' + fmtNum(h.qtd) + ' cotas' : fmtBRL(h.valor)}</span></div>
+                <div class="citem-val">${badgeTipo(h.tipo)}<span class="big" style="margin-top:4px;">${h.qtd != null ? (h.qtd >= 0 ? '+' : '') + fmtNum(h.qtd) + ' cotas' : fmtBRL(h.valor)}</span></div>
               </div>
             </div>`).join('')}
         </div>` : `<div class="empty">Nenhum lançamento neste período.</div>`}
@@ -608,6 +643,8 @@ function renderPortal() {
   atualizaSimDiv();
 
   document.getElementById('btn-quick-sim').addEventListener('click', () => abrirModalSimDividendo(c));
+  const btnAnunciar = document.getElementById('btn-anunciar-portal');
+  if (btnAnunciar) btnAnunciar.addEventListener('click', () => abrirModalAnuncio(c.id));
 }
 
 function abrirModalSimDividendo(cotista) {
@@ -702,7 +739,7 @@ function renderOverview() {
           <div class="citem">
             <div class="citem-top">
               <div><span class="citem-name">${a.nome}</span><div class="citem-meta">${fmtMes(a.mes)}</div></div>
-              <div class="citem-val">${badgeTipo(a.tipo)}<span class="big" style="margin-top:4px;">${a.qtd != null ? '+' + fmtNum(a.qtd) : fmtBRL(a.valor)}</span></div>
+              <div class="citem-val">${badgeTipo(a.tipo)}<span class="big" style="margin-top:4px;">${a.qtd != null ? (a.qtd >= 0 ? '+' : '') + fmtNum(a.qtd) : fmtBRL(a.valor)}</span></div>
             </div>
           </div>`).join('')}
       </div>` : `<div class="empty">Sem atividade neste período.</div>`}
@@ -1286,6 +1323,93 @@ function processarSaida(cotistaId) {
 }
 
 /* ============================================================
+   MERCADO SECUNDÁRIO DE COTAS (entre cotistas ativos)
+   ============================================================ */
+function anunciosDe(cotistaId) {
+  return state.mercado.filter(l => l.vendedorId === cotistaId && l.status === 'ativo');
+}
+function cotasAnunciadas(cotistaId) {
+  return anunciosDe(cotistaId).reduce((s, l) => s + l.cotas, 0);
+}
+/* Cotas que o cotista pode anunciar agora (não pode anunciar mais do que possui livre) */
+function cotasDisponiveisVenda(cotista) {
+  return Math.max(0, cotista.cotas - cotasAnunciadas(cotista.id));
+}
+
+function anunciarCotas(vendedorId, cotas, precoPorCota) {
+  const vendedor = getCotista(vendedorId);
+  if (!vendedor) return false;
+  cotas = Math.floor(cotas);
+  if (cotas <= 0 || precoPorCota <= 0) { toast('Informe quantidade e preço válidos.'); return false; }
+  if (cotas > cotasDisponiveisVenda(vendedor)) {
+    toast(`${vendedor.nome} tem só ${fmtNum(cotasDisponiveisVenda(vendedor))} cotas livres para anunciar.`);
+    return false;
+  }
+  state.mercado.push({
+    id: state.nextListingId++,
+    vendedorId, cotas,
+    precoPorCota: Math.round(precoPorCota * 100) / 100,
+    mesAnuncio: state.mesAtual,
+    status: 'ativo'
+  });
+  persist();
+  toast(`${vendedor.nome} anunciou ${fmtNum(cotas)} cotas a ${fmtBRL(precoPorCota)} cada.`);
+  renderAll();
+  return true;
+}
+
+function cancelarAnuncio(listingId) {
+  const l = state.mercado.find(x => x.id === listingId && x.status === 'ativo');
+  if (!l) return;
+  l.status = 'cancelado';
+  persist();
+  toast('Anúncio cancelado.');
+  renderAll();
+}
+
+function comprarNoMercado(listingId, compradorId) {
+  const l = state.mercado.find(x => x.id === listingId && x.status === 'ativo');
+  if (!l) return;
+  const comprador = getCotista(compradorId);
+  const vendedor = getCotista(l.vendedorId);
+  if (!comprador || !vendedor) return;
+  if (comprador.id === vendedor.id) { toast('O comprador não pode ser o próprio vendedor.'); return; }
+
+  const margem = maxCotasPorCotista() - comprador.cotas; // limite de concentração
+  let qtd = Math.min(l.cotas, Math.max(0, margem));
+  if (qtd <= 0) {
+    toast(`${comprador.nome} atingiu o teto de concentração (máx. ${fmtNum(maxCotasPorCotista())} cotas).`);
+    return;
+  }
+  const custo = qtd * l.precoPorCota;
+
+  // Vendedor: baixa cotas (compradas primeiro, depois bonificadas) e custo-base proporcional
+  const deCompradas = Math.min(vendedor.cotasCompradas, qtd);
+  const deBonificadas = qtd - deCompradas;
+  if (vendedor.cotasCompradas > 0) {
+    vendedor.valorPagoCompras = Math.round(vendedor.valorPagoCompras * (1 - deCompradas / vendedor.cotasCompradas));
+  }
+  vendedor.cotasCompradas -= deCompradas;
+  vendedor.cotasBonificadas = Math.max(0, vendedor.cotasBonificadas - deBonificadas);
+  vendedor.cotas -= qtd;
+  vendedor.historico.push({ mes: state.mesAtual, tipo: 'venda', qtd: -qtd, valor: custo, desc: `Venda de cotas no mercado para ${comprador.nome}` });
+
+  // Comprador: adiciona cotas ao custo pago
+  comprador.cotas += qtd;
+  comprador.cotasCompradas += qtd;
+  comprador.valorPagoCompras += custo;
+  comprador.historico.push({ mes: state.mesAtual, tipo: 'compra-mercado', qtd, valor: custo, desc: `Compra de cotas no mercado de ${vendedor.nome}` });
+
+  // Anúncio: reduz ou encerra
+  l.cotas -= qtd;
+  if (l.cotas <= 0) l.status = 'vendido';
+
+  persist();
+  toast(`${comprador.nome} comprou ${fmtNum(qtd)} cotas de ${vendedor.nome} por ${fmtBRL0(custo)}.`);
+  renderAll();
+}
+
+/* ============================================================
    EVOLUÇÃO (card-list)
    ============================================================ */
 function renderEvolucao() {
@@ -1339,6 +1463,120 @@ function renderSaida() {
   document.getElementById('btn-processar-saida').addEventListener('click', () => {
     if (!confirm(`Processar o desligamento de ${c.nome}? O fundo recompra ${fmtNum(c.cotas)} cotas por ${fmtBRL0(r.valorLiquido)} líquidos e as devolve à tesouraria.`)) return;
     processarSaida(c.id);
+  });
+}
+
+/* ============================================================
+   MERCADO DE COTAS
+   ============================================================ */
+function renderMercado() {
+  const valorCota = estadoNoMes(state.mesAtual).valorCota;
+  const ativos = state.mercado.filter(l => l.status === 'ativo');
+  const totalCotasVenda = ativos.reduce((s, l) => s + l.cotas, 0);
+  const volumeTotal = ativos.reduce((s, l) => s + l.cotas * l.precoPorCota, 0);
+  const precos = ativos.map(l => l.precoPorCota);
+  const faixa = precos.length ? `${fmtBRL(Math.min(...precos))} – ${fmtBRL(Math.max(...precos))}` : '—';
+
+  document.getElementById('mercado-resumo').innerHTML = `
+    <div class="stat-grid">
+      <div class="kpi-card"><span class="lbl">Cotas à venda</span><span class="val">${fmtNum(totalCotasVenda)}</span><span class="sub">${ativos.length} anúncios ativos</span></div>
+      <div class="kpi-card"><span class="lbl">Valor de referência</span><span class="val">${fmtBRL(valorCota)}</span><span class="sub">patrimonial por cota</span></div>
+      <div class="kpi-card"><span class="lbl">Volume anunciado</span><span class="val">${fmtShort(volumeTotal)}</span><span class="sub">se tudo for vendido</span></div>
+      <div class="kpi-card"><span class="lbl">Faixa de preço</span><span class="val" style="font-size:13px;">${faixa}</span><span class="sub">min – máx pedido</span></div>
+    </div>
+    <button class="btn primary full" id="btn-anunciar-mercado" style="margin-top:4px;">+ Anunciar cotas à venda</button>
+  `;
+  document.getElementById('btn-anunciar-mercado').addEventListener('click', () => abrirModalAnuncio());
+
+  const lista = document.getElementById('mercado-list');
+  if (!ativos.length) {
+    lista.innerHTML = `<div class="empty">Nenhuma cota anunciada no momento. Toque em “Anunciar cotas à venda”.</div>`;
+    return;
+  }
+
+  // ordena por deságio (mais barato relativo ao valor patrimonial primeiro)
+  ativos.sort((a, b) => (a.precoPorCota - valorCota) / valorCota - (b.precoPorCota - valorCota) / valorCota);
+
+  lista.innerHTML = ativos.map(l => {
+    const v = getCotista(l.vendedorId);
+    if (!v) return '';
+    const total = l.cotas * l.precoPorCota;
+    const delta = ((l.precoPorCota - valorCota) / valorCota) * 100;
+    const deltaCls = delta > 0.5 ? 'agio' : delta < -0.5 ? 'desagio' : 'par';
+    const deltaTxt = delta > 0.5 ? `ágio ${fmtPct(delta)}` : delta < -0.5 ? `deságio ${fmtPct(Math.abs(delta))}` : 'no valor patrimonial';
+    return `
+      <div class="market-card">
+        <div class="market-top">
+          <div class="market-seller">
+            <span class="avatar" style="background-image:url('${v.fotoUrl}');"></span>
+            <div>
+              <div class="mname">${v.papel === 'lider' ? '★ ' : ''}${v.nome}</div>
+              <div class="mmeta">${v.unidade} · anunciou ${fmtMes(l.mesAnuncio)}</div>
+            </div>
+          </div>
+          <span class="market-delta ${deltaCls}">${deltaTxt}</span>
+        </div>
+        <div class="market-body">
+          <div class="market-fig"><span class="k">Cotas</span><span class="v">${fmtNum(l.cotas)}</span></div>
+          <div class="market-fig"><span class="k">Preço/cota</span><span class="v">${fmtBRL(l.precoPorCota)}</span></div>
+          <div class="market-fig"><span class="k">Total</span><span class="v gold">${fmtBRL0(total)}</span></div>
+        </div>
+        <div class="market-actions">
+          <button class="btn sm ghost full" data-cancelar="${l.id}">Cancelar</button>
+          <button class="btn sm primary full" data-comprar-mercado="${l.id}">Comprar</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  lista.querySelectorAll('[data-comprar-mercado]').forEach(b => b.addEventListener('click', () => {
+    const listing = state.mercado.find(x => x.id === Number(b.dataset.comprarMercado));
+    openCotistaPicker(null, (compradorId) => comprarNoMercado(listing.id, compradorId), listing.vendedorId, 'Quem está comprando?');
+  }));
+  lista.querySelectorAll('[data-cancelar]').forEach(b => b.addEventListener('click', () => cancelarAnuncio(Number(b.dataset.cancelar))));
+}
+
+function abrirModalAnuncio(preSelId) {
+  const valorCota = estadoNoMes(state.mesAtual).valorCota;
+  const elegiveis = state.cotistas.filter(c => cotasDisponiveisVenda(c) > 0);
+  if (!elegiveis.length) { toast('Nenhum cotista tem cotas livres para anunciar.'); return; }
+  let sel = getCotista(preSelId) || elegiveis[0];
+  openModal(`
+    <h3>Anunciar cotas à venda</h3>
+    <p class="hint">O anúncio fica visível no Mercado de Cotas para outros cotistas comprarem.</p>
+    <div class="field" style="margin-top:12px;"><label>Vendedor</label>
+      <select id="anuncio-vendedor">${elegiveis.map(c => `<option value="${c.id}" ${c.id === sel.id ? 'selected' : ''}>${c.nome} — ${fmtNum(cotasDisponiveisVenda(c))} cotas livres</option>`).join('')}</select>
+    </div>
+    <div class="field"><label>Quantidade de cotas</label><input type="number" id="anuncio-qtd" min="1" step="1" value="1"></div>
+    <div class="field"><label>Preço por cota (R$)</label><input type="number" id="anuncio-preco" min="0.01" step="0.5" value="${valorCota.toFixed(2)}"></div>
+    <p class="hint" id="anuncio-preview"></p>
+    <div class="modal-actions">
+      <button class="btn ghost" id="anuncio-cancelar">Cancelar</button>
+      <button class="btn primary" id="anuncio-confirmar">Anunciar</button>
+    </div>
+  `, (root) => {
+    const selEl = root.querySelector('#anuncio-vendedor');
+    const qtdEl = root.querySelector('#anuncio-qtd');
+    const precoEl = root.querySelector('#anuncio-preco');
+    const preview = root.querySelector('#anuncio-preview');
+    const atualiza = () => {
+      const c = getCotista(Number(selEl.value));
+      const livres = cotasDisponiveisVenda(c);
+      qtdEl.max = livres;
+      const qtd = Math.min(Number(qtdEl.value) || 0, livres);
+      const preco = Number(precoEl.value) || 0;
+      const delta = valorCota > 0 ? ((preco - valorCota) / valorCota) * 100 : 0;
+      const rel = Math.abs(delta) < 0.5 ? 'no valor patrimonial' : delta > 0 ? `ágio de ${fmtPct(delta)}` : `deságio de ${fmtPct(Math.abs(delta))}`;
+      preview.textContent = `${c.nome} tem ${fmtNum(livres)} cotas livres · total do anúncio ${fmtBRL0(qtd * preco)} (${rel}).`;
+    };
+    selEl.addEventListener('change', atualiza);
+    qtdEl.addEventListener('input', atualiza);
+    precoEl.addEventListener('input', atualiza);
+    atualiza();
+    root.querySelector('#anuncio-cancelar').addEventListener('click', closeModal);
+    root.querySelector('#anuncio-confirmar').addEventListener('click', () => {
+      const ok = anunciarCotas(Number(selEl.value), Number(qtdEl.value) || 0, Number(precoEl.value) || 0);
+      if (ok) closeModal();
+    });
   });
 }
 
@@ -1406,11 +1644,12 @@ function wirePropostaCalculators() {
 function openMaisSheet() {
   const itemsHtml = `<div>
     <button class="sheet-item" data-go="evolucao"><span class="ic">05</span>Evolução &amp; Projeção</button>
-    <button class="sheet-item" data-go="saida"><span class="ic">06</span>Saída &amp; Recompra</button>
-    <button class="sheet-item" data-go="config"><span class="ic">07</span>Configuração do Fundo</button>
-    <button class="sheet-item" data-go="fip"><span class="ic">08</span>O Que É um FIP?</button>
-    <button class="sheet-item" data-go="proposta"><span class="ic">09</span>Proposta Comercial</button>
-    <button class="sheet-item" data-go="concorrentes"><span class="ic">10</span>Estudo de Concorrentes</button>
+    <button class="sheet-item" data-go="mercado"><span class="ic">06</span>Mercado de Cotas</button>
+    <button class="sheet-item" data-go="saida"><span class="ic">07</span>Saída &amp; Recompra</button>
+    <button class="sheet-item" data-go="config"><span class="ic">08</span>Configuração do Fundo</button>
+    <button class="sheet-item" data-go="fip"><span class="ic">09</span>O Que É um FIP?</button>
+    <button class="sheet-item" data-go="proposta"><span class="ic">10</span>Proposta Comercial</button>
+    <button class="sheet-item" data-go="concorrentes"><span class="ic">11</span>Estudo de Concorrentes</button>
   </div>`;
   openSheet(`<h3>Mais Opções</h3>`, itemsHtml, (root) => {
     root.querySelectorAll('[data-go]').forEach(b => {
