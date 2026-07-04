@@ -4,7 +4,7 @@
    Tudo em memória / localStorage.
    ============================================================ */
 
-const STORAGE_KEY = 'gavioes_fundo_sim_v13';
+const STORAGE_KEY = 'gavioes_fundo_sim_v14';
 const HORIZON_MESES = 480; // 40 anos de estados pré-computados
 
 const DEFAULT_CONFIG = {
@@ -18,7 +18,9 @@ const DEFAULT_CONFIG = {
   auditoriaAnual: 6000,   // R$/ano fixo
   cotasLiderMes: 20,
   limiteCompraMes: 20,
-  irrfPct: 15
+  irrfPct: 15,
+  reservaPct: 10,            // % do patrimônio reservado em caixa p/ recompras de saída
+  limiteConcentracaoPct: 10  // máximo de % do total de cotas por cotista
 };
 
 const UNIDADES = ['Marketing', 'Operação', 'Implantação', 'Administrativo', 'Comercial', 'Financeiro'];
@@ -127,11 +129,17 @@ function seedCotistas() {
       }
     }
 
+    // Perfil de pequeno investidor: parte dos cotistas tem plano mensal via folha
+    // e/ou reinvestimento automático de dividendos (padrão estável por id).
+    const planoMensal = (id % 3 === 0) ? 50 + (id % 4) * 50 : (papel === 'lider' ? 200 : 0);
+    const reinvestirDividendos = id % 4 === 0 || papel === 'lider';
     return {
       id, nome, unidade, papel, liderId,
       vinculo: 'CLT',
       mesEntrada,
       cotas, cotasBonificadas: bon, cotasCompradas: comp, valorPagoCompras: valorPago,
+      planoMensal, reinvestirDividendos,
+      creditoReinvestimento: reinvestirDividendos ? Math.round(Math.random() * 3000) / 100 : 0,
       fotoUrl: `https://randomuser.me/api/portraits/${genero === 'F' ? 'women' : 'men'}/${id % 15}.jpg`,
       compradoNoMes: {},
       historico: [
@@ -199,6 +207,12 @@ function loadState() {
         if (!parsed.portalPeriodo) parsed.portalPeriodo = 'tudo';
         if (!parsed.overviewPeriodo) parsed.overviewPeriodo = 'tudo';
         if (!parsed.simDiv) parsed.simDiv = { lucro: parsed.config.lucroMensal, meses: 12 };
+        parsed.config = { ...DEFAULT_CONFIG, ...parsed.config };
+        parsed.cotistas.forEach(c => {
+          if (c.planoMensal == null) c.planoMensal = 0;
+          if (c.reinvestirDividendos == null) c.reinvestirDividendos = false;
+          if (c.creditoReinvestimento == null) c.creditoReinvestimento = 0;
+        });
         return parsed;
       }
     }
@@ -255,6 +269,13 @@ function estadoNoMes(mes) { const m = Math.max(0, Math.min(mes, estados.length -
 function getCotista(id) { return state.cotistas.find(c => c.id === Number(id)); }
 function colaboradoresDe(liderId) { return state.cotistas.filter(c => c.liderId === liderId); }
 function totalDistribuido() { return state.cotistas.reduce((s, c) => s + c.cotas, 0); }
+function cotasEmTesouraria() { return Math.max(0, state.config.totalCotas - totalDistribuido()); }
+function maxCotasPorCotista() { return Math.floor(state.config.totalCotas * (state.config.limiteConcentracaoPct / 100)); }
+
+/* Quantas cotas um cotista ainda pode adquirir, respeitando concentração e tesouraria */
+function margemCompra(cotista) {
+  return Math.max(0, Math.min(maxCotasPorCotista() - cotista.cotas, cotasEmTesouraria()));
+}
 
 /* Sem vesting: o fundo recompra as cotas pelo valor de mercado no momento da saída,
    independente do tempo de casa. Ganho de capital sofre IRRF normalmente. */
@@ -296,7 +317,9 @@ function registrarCompra(cotistaId, valorReais) {
   const jaComprado = cotista.compradoNoMes[state.mesAtual] || 0;
   const restante = state.config.limiteCompraMes - jaComprado;
   if (restante <= 0) { toast('Limite mensal de compra já atingido para este cotista.'); return; }
-  qtd = Math.min(qtd, restante);
+  const margem = margemCompra(cotista);
+  if (margem <= 0) { toast(`Limite de concentração atingido (máx. ${fmtNum(maxCotasPorCotista())} cotas por cotista).`); return; }
+  qtd = Math.min(qtd, restante, margem);
   if (qtd <= 0) { toast('Valor insuficiente para comprar ao menos 1 cota.'); return; }
   const custo = qtd * valorCotaAtual;
   cotista.cotas += qtd;
@@ -422,6 +445,7 @@ function badgeTipo(tipo) {
   if (tipo === 'bonificacao') return `<span class="badge gold">BÔNUS</span>`;
   if (tipo === 'compra') return `<span class="badge neutral">COMPRA</span>`;
   if (tipo === 'dividendo') return `<span class="badge olive">DIVIDENDO</span>`;
+  if (tipo === 'reinvestimento') return `<span class="badge olive">REINVESTIDO</span>`;
   return tipo;
 }
 
@@ -497,6 +521,19 @@ function renderPortal() {
     </div>
 
     <div class="m-card">
+      <div class="panel-title"><h2>Meu Plano de Investidor</h2><span class="meta">automático</span></div>
+      <div class="field"><label>Investimento mensal via folha (R$) — 0 desativa</label><input type="number" id="plano-mensal-input" min="0" step="25" value="${c.planoMensal || 0}"></div>
+      <p class="hint" id="plano-mensal-preview" style="margin-bottom:14px;"></p>
+      <label class="drip-toggle">
+        <input type="checkbox" id="drip-toggle" ${c.reinvestirDividendos ? 'checked' : ''}>
+        <span class="box"></span>
+        <span class="txt"><strong>Reinvestir dividendos automaticamente</strong><br>Seus dividendos acumulam como crédito e, a cada cota inteira, viram novas cotas no fechamento do mês.</span>
+      </label>
+      ${c.reinvestirDividendos && (c.creditoReinvestimento || 0) > 0 ? `<p class="hint" style="margin-top:10px; color:var(--olive);">Crédito acumulado: ${fmtBRL(c.creditoReinvestimento)} — faltam ${fmtBRL(Math.max(0, valorCotaAtual - c.creditoReinvestimento))} para a próxima cota.</p>` : ''}
+      <p class="hint" style="margin-top:10px;">Limites: ${state.config.limiteCompraMes} cotas/mês de compra · máx. ${fmtNum(maxCotasPorCotista())} cotas por cotista (${state.config.limiteConcentracaoPct}% do fundo).</p>
+    </div>
+
+    <div class="m-card">
       <div class="panel-title"><h2>Propriedade das Cotas</h2><span class="meta">100% sua</span></div>
       <p class="hint">Suas cotas são 100% suas desde o dia em que você as recebeu ou comprou — não existe carência. Na entrada da empresa (${fmtMes(c.mesEntrada)}, há ${tempoCasa} ${tempoCasa === 1 ? 'mês' : 'meses'}), você já é proprietário pleno. Se sair da empresa, o fundo recompra suas cotas pelo valor de mercado do momento — simule na aba Saída &amp; Recompra.</p>
     </div>
@@ -530,6 +567,28 @@ function renderPortal() {
   `;
 
   wirePeriodoChips('portal', (key) => { state.portalPeriodo = key; persist(); renderPortal(); });
+
+  // Plano do investidor: desconto em folha + reinvestimento automático
+  const planoInput = document.getElementById('plano-mensal-input');
+  const planoPreview = document.getElementById('plano-mensal-preview');
+  const atualizaPlano = () => {
+    const v = Math.max(0, Number(planoInput.value) || 0);
+    c.planoMensal = v;
+    if (v > 0) {
+      const qtd = Math.floor(v / valorCotaAtual);
+      planoPreview.textContent = `No fechamento do mês: ${fmtBRL0(v)} descontados em folha viram ≈ ${qtd} ${qtd === 1 ? 'cota' : 'cotas'} (cota a ${fmtBRL(valorCotaAtual)}).`;
+    } else {
+      planoPreview.textContent = 'Sem plano ativo — você ainda pode comprar cotas avulsas na aba Cotistas.';
+    }
+    persist();
+  };
+  planoInput.addEventListener('input', atualizaPlano);
+  atualizaPlano();
+  document.getElementById('drip-toggle').addEventListener('change', (ev) => {
+    c.reinvestirDividendos = ev.target.checked;
+    persist();
+    toast(ev.target.checked ? 'Reinvestimento automático ativado.' : 'Reinvestimento automático desativado.');
+  });
 
   const atualizaSimDiv = () => {
     const lucro = Number(document.getElementById('sim-div-lucro').value) || 0;
@@ -611,9 +670,22 @@ function renderOverview() {
   const pctFunc = (distrib / state.config.totalCotas) * 100;
   document.getElementById('overview-donut').innerHTML = svgDonut(
     pctFunc, 100 - pctFunc, '#d9a440', '#605c4c',
-    `${fmtNum(distrib)} cotas com funcionários`, `${fmtNum(state.config.totalCotas - distrib)} ainda com a rede`,
+    `${fmtNum(distrib)} cotas com funcionários`, `${fmtNum(state.config.totalCotas - distrib)} em tesouraria`,
     `${fmtNum(state.config.totalCotas)} cotas totais`
   );
+
+  // Tesouraria & liquidez para recompras
+  const tesouraria = cotasEmTesouraria();
+  const reserva = e.patrimonioFundo * (state.config.reservaPct / 100);
+  const capacidadeRecompra = Math.floor(reserva / e.valorCota);
+  const coberturaPct = distrib > 0 ? Math.min(100, (capacidadeRecompra / distrib) * 100) : 100;
+  document.getElementById('overview-tesouraria').innerHTML = `
+    <div class="scenario-row"><span class="k">Cotas em tesouraria</span><span class="v">${fmtNum(tesouraria)} (${fmtBRL0(tesouraria * e.valorCota)})</span></div>
+    <div class="scenario-row"><span class="k">Reserva de recompra (${state.config.reservaPct}% do patrimônio)</span><span class="v">${fmtBRL0(reserva)}</span></div>
+    <div class="scenario-row"><span class="k">Capacidade de recompra imediata</span><span class="v">${fmtNum(capacidadeRecompra)} cotas</span></div>
+    <div class="scenario-row total"><span class="k">Cobertura das cotas distribuídas</span><span class="v">${coberturaPct.toFixed(0)}%</span></div>
+    <p class="hint" style="margin-top:10px;">A reserva garante caixa para recomprar cotas de quem sai, sem depender do lucro do mês. Cotas recompradas voltam à tesouraria e ficam disponíveis para bonificar novos talentos.</p>
+  `;
 
   renderOverviewAreas(e.valorCota, distrib);
 
@@ -716,6 +788,8 @@ function renderConfig() {
   document.getElementById('cfg-cotasLider').value = c.cotasLiderMes;
   document.getElementById('cfg-limiteCompra').value = c.limiteCompraMes;
   document.getElementById('cfg-irrf').value = c.irrfPct;
+  document.getElementById('cfg-reserva').value = c.reservaPct;
+  document.getElementById('cfg-concentracao').value = c.limiteConcentracaoPct;
 
   const valuationBase = c.lucroMensal * 12 * c.multiplo;
   const participacaoBase = valuationBase * (c.participacaoPct / 100);
@@ -740,7 +814,9 @@ function lerConfigDosInputs() {
     auditoriaAnual: Number(document.getElementById('cfg-auditoria').value) || 0,
     cotasLiderMes: Number(document.getElementById('cfg-cotasLider').value) || 0,
     limiteCompraMes: Number(document.getElementById('cfg-limiteCompra').value) || 0,
-    irrfPct: Number(document.getElementById('cfg-irrf').value) || 0
+    irrfPct: Number(document.getElementById('cfg-irrf').value) || 0,
+    reservaPct: Number(document.getElementById('cfg-reserva').value) || 0,
+    limiteConcentracaoPct: Number(document.getElementById('cfg-concentracao').value) || 100
   };
 }
 
@@ -813,10 +889,10 @@ function abrirModalCompra(cotistaId) {
   const c = getCotista(cotistaId);
   const valorCotaAtual = estadoNoMes(state.mesAtual).valorCota;
   const jaComprado = c.compradoNoMes[state.mesAtual] || 0;
-  const restante = state.config.limiteCompraMes - jaComprado;
+  const restante = Math.min(state.config.limiteCompraMes - jaComprado, margemCompra(c));
   openModal(`
     <h3>Comprar cotas — ${c.nome}</h3>
-    <p class="hint">Cota atual: ${fmtBRL(valorCotaAtual)} · Limite restante: ${restante} cotas.</p>
+    <p class="hint">Cota atual: ${fmtBRL(valorCotaAtual)} · Limite restante: ${restante} cotas (mês + concentração).</p>
     <div class="field" style="margin-top:14px;"><label>Valor a investir (R$)</label><input type="number" id="modal-valor-compra" step="50" value="500"></div>
     <p class="hint" id="modal-compra-preview"></p>
     <div class="modal-actions">
@@ -872,6 +948,7 @@ function abrirModalNovoCotista() {
         vinculo: 'CLT',
         mesEntrada: state.mesAtual, cotas: 0, cotasBonificadas: 0, cotasCompradas: 0,
         valorPagoCompras: 0,
+        planoMensal: 0, reinvestirDividendos: false, creditoReinvestimento: 0,
         fotoUrl: `https://randomuser.me/api/portraits/${genero === 'F' ? 'women' : 'men'}/${novoId % 15}.jpg`,
         compradoNoMes: {}, historico: []
       });
@@ -1059,11 +1136,20 @@ function renderCicloStep3(body) {
 function renderCicloStep4(body) {
   const e = estadoNoMes(state.mesAtual);
   const lucroMes = state.ciclo.lucroMes;
+  const comPlano = state.cotistas.filter(c => c.planoMensal > 0);
+  const somaPlanos = comPlano.reduce((s, c) => s + c.planoMensal, 0);
+  const comDrip = state.cotistas.filter(c => c.reinvestirDividendos && c.cotas > 0);
   body.innerHTML = `
     <div class="m-card">
       <h3>Lucro da Academia neste Mês</h3>
       <div class="field" style="margin-top:12px;"><label>Lucro (R$)</label><input type="number" id="input-lucro-mes" step="2000" value="${lucroMes}"></div>
       <p class="hint" id="dividendo-formula"></p>
+    </div>
+    <div class="m-card">
+      <h3 style="margin-bottom:10px;">Pequenos Investidores no Fechamento</h3>
+      <div class="scenario-row"><span class="k">Planos de folha ativos</span><span class="v">${comPlano.length} cotistas · ${fmtBRL0(somaPlanos)}/mês</span></div>
+      <div class="scenario-row"><span class="k">Reinvestimento automático ligado</span><span class="v">${comDrip.length} cotistas</span></div>
+      <p class="hint" style="margin-top:10px;">Ao fechar o mês, os planos compram cotas via folha e os dividendos de quem tem reinvestimento automático viram novas cotas.</p>
     </div>
     <div class="m-card">
       <h3 style="margin-bottom:10px;">Resultado do Mês</h3>
@@ -1120,26 +1206,82 @@ function renderCicloStep4(body) {
 function fecharMes() {
   const lucro = state.ciclo.lucroMes;
   const eAntes = estadoNoMes(state.mesAtual);
+  const valorCota = eAntes.valorCota;
   const fr = lucro * (state.config.participacaoPct / 100);
   const cm = eAntes.patrimonioFundo * (state.config.taxaAdmPct / 100 / 12) + state.config.auditoriaAnual / 12;
   const dpc = (fr - cm) / state.config.totalCotas;
 
+  let totCotasFolha = 0, totCotasReinvestidas = 0;
+
   state.cotistas.forEach(c => {
+    // 1. Bonificação aprovada pelos líderes
     const bonus = (c.papel === 'colaborador' && c.liderId) ? (getAlocLider(c.liderId)[c.id] || 0) : 0;
     if (bonus > 0) {
       c.cotas += bonus;
       c.cotasBonificadas += bonus;
       c.historico.push({ mes: state.mesAtual, tipo: 'bonificacao', qtd: bonus, valor: 0, desc: 'Bonificação por performance' });
     }
-    if (c.cotas > 0) {
-      c.historico.push({ mes: state.mesAtual, tipo: 'dividendo', qtd: null, valor: c.cotas * dpc, desc: 'Dividendo mensal' });
+
+    // 2. Plano do investidor: compra automática via desconto em folha
+    if (c.planoMensal > 0) {
+      const jaComprado = c.compradoNoMes[state.mesAtual] || 0;
+      let qtd = Math.floor(c.planoMensal / valorCota);
+      qtd = Math.min(qtd, state.config.limiteCompraMes - jaComprado, margemCompra(c));
+      if (qtd > 0) {
+        const custo = qtd * valorCota;
+        c.cotas += qtd;
+        c.cotasCompradas += qtd;
+        c.valorPagoCompras += custo;
+        c.compradoNoMes[state.mesAtual] = jaComprado + qtd;
+        c.historico.push({ mes: state.mesAtual, tipo: 'compra', qtd, valor: custo, desc: 'Investimento via folha de pagamento' });
+        totCotasFolha += qtd;
+      }
+    }
+
+    // 3. Dividendo do mês (sobre o saldo já atualizado)
+    if (c.cotas > 0 && dpc > 0) {
+      const dividendo = c.cotas * dpc;
+      c.historico.push({ mes: state.mesAtual, tipo: 'dividendo', qtd: null, valor: dividendo, desc: 'Dividendo mensal' });
+
+      // 4. Reinvestimento automático: o dividendo acumula como crédito e,
+      // quando o crédito compra ao menos 1 cota inteira, converte.
+      if (c.reinvestirDividendos) {
+        c.creditoReinvestimento = (c.creditoReinvestimento || 0) + dividendo;
+        let qtdR = Math.floor(c.creditoReinvestimento / valorCota);
+        qtdR = Math.min(qtdR, margemCompra(c));
+        if (qtdR > 0) {
+          const custoR = qtdR * valorCota;
+          c.cotas += qtdR;
+          c.cotasCompradas += qtdR;
+          c.valorPagoCompras += custoR;
+          c.creditoReinvestimento -= custoR;
+          c.historico.push({ mes: state.mesAtual, tipo: 'reinvestimento', qtd: qtdR, valor: custoR, desc: 'Reinvestimento automático de dividendos' });
+          totCotasReinvestidas += qtdR;
+        }
+      }
     }
   });
 
   state.mesAtual += 1;
   state.ciclo = { step: 1, alocacoes: {}, lucroMes: state.config.lucroMensal, aprovado: false };
   persist();
-  toast(`${fmtMes(state.mesAtual - 1)} fechado. Dividendo de ${fmtBRL(dpc)}/cota distribuído.`);
+  const extras = [];
+  if (totCotasFolha > 0) extras.push(`${totCotasFolha} cotas via folha`);
+  if (totCotasReinvestidas > 0) extras.push(`${totCotasReinvestidas} reinvestidas`);
+  toast(`${fmtMes(state.mesAtual - 1)} fechado. Dividendo de ${fmtBRL(dpc)}/cota${extras.length ? ' · ' + extras.join(' · ') : ''}.`);
+  renderAll();
+}
+
+/* Executa de verdade o desligamento: recompra as cotas a mercado e devolve à tesouraria */
+function processarSaida(cotistaId) {
+  const c = getCotista(cotistaId);
+  if (!c) return;
+  const r = calcSaidaScenario(c);
+  state.cotistas = state.cotistas.filter(x => x.id !== c.id);
+  if (state.portalSelId === c.id) state.portalSelId = state.cotistas[0]?.id;
+  if (state.saidaSelId === c.id) state.saidaSelId = state.cotistas[0]?.id;
+  persist();
+  toast(`${c.nome} desligado(a). ${fmtNum(r.totalCotas)} cotas recompradas por ${fmtBRL0(r.valorLiquido)} líquidos e devolvidas à tesouraria.`);
   renderAll();
 }
 
@@ -1190,7 +1332,14 @@ function renderSaida() {
       <div class="scenario-row total"><span class="k">Valor líquido recebido</span><span class="v">${fmtBRL(r.valorLiquido)}</span></div>
     </div>
     <p class="hint" style="margin-top:14px;">Sem regra de vesting: independente do tempo de casa, ao sair o fundo recompra 100% das cotas do cotista pelo valor de mercado do momento, com IRRF de ${state.config.irrfPct}% sobre o ganho de capital (se houver).</p>
+    <button class="btn primary full" id="btn-processar-saida" style="margin-top:16px;">Processar Desligamento ✓</button>
+    <p class="hint" style="margin-top:8px; text-align:center;">Executa a recompra de verdade: o cotista sai do fundo e as ${fmtNum(c.cotas)} cotas voltam à tesouraria.</p>
   `;
+
+  document.getElementById('btn-processar-saida').addEventListener('click', () => {
+    if (!confirm(`Processar o desligamento de ${c.nome}? O fundo recompra ${fmtNum(c.cotas)} cotas por ${fmtBRL0(r.valorLiquido)} líquidos e as devolve à tesouraria.`)) return;
+    processarSaida(c.id);
+  });
 }
 
 /* ============================================================

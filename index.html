@@ -44,7 +44,7 @@
       <div class="m-view-head">
         <span class="eyebrow">Painel do Administrador</span>
         <h1>Visão Geral do Fundo</h1>
-        <p class="desc">Fotografia do fundo no mês atual — participação de 10% na academia, patrimônio e distribuição de cotas.</p>
+        <p class="desc">Fotografia do fundo no mês atual — participação na academia, patrimônio, tesouraria e distribuição de cotas.</p>
       </div>
       <div class="kpi-stack" id="overview-kpis"></div>
       <div class="m-card">
@@ -54,6 +54,10 @@
       <div class="m-card">
         <div class="panel-title"><h2>Propriedade do Fundo</h2></div>
         <div id="overview-donut"></div>
+      </div>
+      <div class="m-card">
+        <div class="panel-title"><h2>Tesouraria &amp; Liquidez</h2><span class="meta">recompras</span></div>
+        <div id="overview-tesouraria"></div>
       </div>
       <div class="m-card">
         <div class="panel-title"><h2>Cotas por Área</h2><span class="meta">toque para filtrar</span></div>
@@ -146,6 +150,12 @@
         <div class="field"><label>Limite de compra por funcionário / mês</label><input type="number" id="cfg-limiteCompra" step="1"></div>
         <div class="field"><label>IRRF sobre ganho de capital (%)</label><input type="number" id="cfg-irrf" step="1"></div>
       </div>
+      <div class="m-card">
+        <h3>Proteções do Fundo</h3>
+        <div class="field"><label>Reserva de recompra (% do patrimônio)</label><input type="number" id="cfg-reserva" step="1" min="0" max="50"></div>
+        <div class="field"><label>Concentração máxima por cotista (% do fundo)</label><input type="number" id="cfg-concentracao" step="1" min="1" max="100"></div>
+        <p class="hint">A reserva garante caixa para recomprar cotas de quem sai. O limite de concentração impede que uma pessoa acumule cotas demais.</p>
+      </div>
       <button class="btn primary full" id="cfg-aplicar">Aplicar e Recalcular</button>
       <button class="btn ghost full" id="cfg-padrao" style="margin-top:10px;">Restaurar Padrões</button>
     </section>
@@ -161,7 +171,7 @@
       <div class="m-card">
         <h3 style="margin-bottom:14px;">Em uma frase</h3>
         <p style="font-size:14.5px; line-height:1.7; color:var(--ink);">
-          A academia separou <strong>10% dela</strong> pra dividir com quem trabalha lá. Esse pedaço fica guardado num
+          A academia separou <strong>uma fatia dela</strong> pra dividir com quem trabalha lá. Esse pedaço fica guardado num
           <strong>fundo</strong>, dividido em <strong>cotas</strong>. Cada funcionário recebe ou compra cotas — e o valor
           delas sobe conforme a academia cresce e lucra.
         </p>
@@ -171,7 +181,7 @@
         <h3 style="margin-bottom:16px;">Como o dinheiro chega até você</h3>
         <div class="flow">
           <div class="flow-step"><span class="flow-n">1</span><div><strong>Academia fatura e lucra</strong><p>Mensalidades, aulas, serviços — depois de pagar as contas, sobra lucro.</p></div></div>
-          <div class="flow-step"><span class="flow-n">2</span><div><strong>Fundo recebe sua fatia</strong><p>10% desse lucro entra no fundo automaticamente, todo mês.</p></div></div>
+          <div class="flow-step"><span class="flow-n">2</span><div><strong>Fundo recebe sua fatia</strong><p>A participação combinada desse lucro entra no fundo automaticamente, todo mês.</p></div></div>
           <div class="flow-step"><span class="flow-n">3</span><div><strong>Fundo paga seus próprios custos</strong><p>Administração, auditoria e custódia — uma fração pequena, descontada antes da divisão.</p></div></div>
           <div class="flow-step"><span class="flow-n">4</span><div><strong>O que resta é dividido</strong><p>Proporcional à quantidade de cotas de cada cotista. Mais cotas, mais dividendo.</p></div></div>
           <div class="flow-step last"><span class="flow-n">5</span><div><strong>Você recebe</strong><p>Em dinheiro (dividendo) ou em valorização das suas cotas, que você pode vender depois.</p></div></div>
@@ -192,13 +202,30 @@
           </div>
         </div>
         <div class="acc-item">
-          <button class="acc-head">Por que FIP, e não outro tipo de fundo? <span class="acc-ico">+</span></button>
+          <button class="acc-head">FIP ou holding? A estrutura jurídica de verdade <span class="acc-ico">+</span></button>
           <div class="acc-body">
-            <p><strong>FIP</strong> significa Fundo de Investimento em Participações — feito justamente pra investir em participação de empresas que não estão na bolsa, exatamente o caso da academia. Três motivos pra esse formato:</p>
+            <p>Detalhe que quase todo mundo erra: um <strong>FIP regulado pela CVM só aceita investidor qualificado</strong> — quem tem R$ 1 milhão ou mais aplicados. Funcionário comum não pode ser cotista de um FIP puro. Por isso este modelo usa uma estrutura em duas camadas:</p>
             <ul>
-              <li><strong>Fechado:</strong> só funcionários participam, não é vendido pro público em geral.</li>
-              <li><strong>Tributação favorável:</strong> dividendos chegam isentos de imposto de renda pra pessoa física.</li>
-              <li><strong>Sob medida:</strong> a regulação de FIP foi desenhada pra esse tipo de participação societária, diferente de fundos genéricos.</li>
+              <li><strong>Veículo de participação fechado (holding):</strong> é dele que os funcionários compram cotas. Aceita qualquer funcionário ativo, sem valor mínimo, e a entrada/saída de cotistas não mexe no contrato social da empresa operadora.</li>
+              <li><strong>FIP como camada opcional:</strong> se um dia entrarem investidores qualificados ou institucionais, o FIP entra como veículo deles, por cima da mesma estrutura.</li>
+            </ul>
+            <p>No dia a dia, todo mundo chama de "fundo" — o que muda é o registro jurídico, não a mecânica de cotas, dividendos e recompra que você vê neste sistema.</p>
+          </div>
+        </div>
+        <div class="acc-item">
+          <button class="acc-head">Quem pode investir? <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p><strong>Qualquer funcionário ativo</strong>, do primeiro dia de casa em diante — sem valor mínimo alto, sem prova de patrimônio. Dá pra começar comprando 1 cota, entrar num plano mensal descontado em folha, ou só receber bonificações e deixar render. Os únicos limites são de proteção: um teto de compras por mês e um teto de concentração (ninguém pode ter mais que uma fração definida do fundo).</p>
+          </div>
+        </div>
+        <div class="acc-item">
+          <button class="acc-head">E os impostos? <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p>Três situações, três regras simples:</p>
+            <ul>
+              <li><strong>Dividendos mensais:</strong> pela Lei 15.270/2025 (em vigor desde 2026), dividendos pagos a pessoa física só sofrem retenção na parte que ultrapassar R$ 50 mil <em>por mês, por pessoa</em>. Os dividendos deste fundo ficam muito abaixo disso — na prática, chegam sem desconto.</li>
+              <li><strong>Venda/recompra de cotas:</strong> sobre o ganho de capital (diferença entre o que você pagou e o que recebeu) incide IRRF de 15% — exatamente o que a aba Saída &amp; Recompra calcula.</li>
+              <li><strong>Cotas de bonificação:</strong> recebidas de graça, têm custo zero — na saída, o ganho é o valor cheio da venda, e o simulador já trata isso.</li>
             </ul>
           </div>
         </div>
@@ -217,7 +244,9 @@
               <dt>Patrimônio líquido</dt><dd>Valor total do fundo, já descontando custos.</dd>
               <dt>Valuation</dt><dd>Quanto a academia vale no papel, hoje.</dd>
               <dt>Recompra</dt><dd>Empresa compra de volta as cotas de quem saiu, pelo valor de mercado.</dd>
+              <dt>Tesouraria</dt><dd>Cotas ainda não distribuídas (ou recompradas de quem saiu), disponíveis para bonificar novos talentos.</dd>
               <dt>Dividendo</dt><dd>Parte do lucro distribuída aos cotistas.</dd>
+              <dt>Investidor qualificado</dt><dd>Quem tem R$ 1 milhão+ aplicados — exigência de FIP puro, que a estrutura de holding dispensa.</dd>
               <dt>CVM</dt><dd>Órgão que regula e fiscaliza fundos no Brasil.</dd>
             </dl>
           </div>
@@ -310,6 +339,11 @@
           <span style="font-size:15px; font-weight:700; color:var(--ink); font-family:var(--serif);">Franqueadoras</span>
         </div>
         <p style="font-size:13px; line-height:1.65; color:var(--ink-dim);">Toda unidade nova que abre precisa de um gestor forte desde o primeiro dia — e a marca inteira depende da consistência entre lojas. Quando esse gestor vai embora, o padrão cai ali, e isso machuca a reputação da rede inteira, inclusive na hora de vender a próxima unidade. Equity ajuda a reter exatamente quem sustenta esse padrão enquanto a franqueadora escala — e ainda se torna um diferencial pra atrair novos franqueados.</p>
+      </div>
+
+      <div class="m-card">
+        <h3 style="margin-bottom:10px;">O detalhe jurídico que quase todo mundo erra</h3>
+        <p style="font-size:13px; line-height:1.65; color:var(--ink-dim);">Um FIP regulado pela CVM <strong style="color:var(--ink);">só aceita investidor qualificado</strong> — R$ 1 milhão ou mais aplicados. Quem promete "FIP pra todo funcionário" está vendendo um problema com o regulador. Nossa entrega usa um <strong style="color:var(--ink);">veículo de participação fechado</strong> que aceita qualquer funcionário ativo, sem valor mínimo — e com a lei de 2026 (Lei 15.270), dividendos de pessoa física continuam sem retenção até R$ 50 mil/mês. Estrutura mais barata, implantação mais rápida e zero atrito regulatório.</p>
       </div>
 
       <div class="m-card">
