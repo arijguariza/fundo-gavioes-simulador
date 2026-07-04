@@ -590,6 +590,12 @@ input[type="range"]::-moz-range-thumb{
 }
 .comp-meta .row .val{color:var(--ink); flex:1;}
 .comp-meta .row .val strong{color:var(--gold-bright); font-weight:600;}
+.comp-site{
+  display:inline-flex; align-items:center; gap:6px; margin-top:12px;
+  font-family:var(--mono); font-size:11px; letter-spacing:.3px; color:var(--gold-bright);
+  text-decoration:none; padding:6px 12px; border:1px solid var(--gold-line); border-radius:20px; background:var(--gold-soft);
+}
+.comp-site:active{opacity:.6;}
 .gap-card{
   background:linear-gradient(150deg, var(--gold-soft), var(--panel)); border:1px solid var(--gold-line);
   border-radius:16px; padding:18px 18px; margin-bottom:14px;
