@@ -1923,8 +1923,8 @@ function wirePropostaCalculators() {
    ============================================================ */
 function openMaisSheet() {
   const itemsHtml = `<div>
-    <button class="sheet-item" data-go="evolucao"><span class="ic">05</span>Evolução &amp; Projeção</button>
-    <button class="sheet-item" data-go="mercado"><span class="ic">06</span>Mercado de Cotas</button>
+    <button class="sheet-item" data-go="ciclo"><span class="ic">05</span>Ciclo Mensal</button>
+    <button class="sheet-item" data-go="evolucao"><span class="ic">06</span>Evolução &amp; Projeção</button>
     <button class="sheet-item" data-go="saida"><span class="ic">07</span>Saída &amp; Recompra</button>
     <button class="sheet-item" data-go="regras"><span class="ic">08</span>Regras do Fundo</button>
     <button class="sheet-item" data-go="config"><span class="ic">09</span>Configuração do Fundo</button>
