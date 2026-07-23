@@ -584,6 +584,76 @@ label.drip-toggle{
 .drip-toggle .txt{font-size:12px; line-height:1.55; color:var(--ink-dim);}
 .drip-toggle .txt strong{color:var(--ink); font-size:12.5px;}
 
+/* ===== Caminho de Implantação ===== */
+.verdict-hero{
+  background:linear-gradient(155deg, rgba(193,80,44,.16), var(--panel)); border:1px solid rgba(193,80,44,.4);
+  border-radius:var(--r-lg); padding:22px 20px; margin-bottom:16px;
+}
+.verdict-hero .eyebrow{font-family:var(--mono); font-size:10.5px; letter-spacing:2px; text-transform:uppercase; color:var(--rust); display:block; margin-bottom:10px;}
+.verdict-hero h1{font-size:23px; line-height:1.22; color:var(--ink);}
+.verdict-hero p{font-size:13.5px; color:var(--ink-dim); line-height:1.62; margin-top:12px;}
+
+.premissa{border-bottom:1px solid var(--line-soft); padding:12px 0;}
+.premissa:last-child{border-bottom:none;}
+.premissa .top{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:5px;}
+.premissa .pq{font-size:12.5px; color:var(--ink); font-weight:600; line-height:1.4; flex:1;}
+.premissa .real{font-size:11.5px; color:var(--ink-dim); line-height:1.55;}
+.vbadge{
+  flex:0 0 auto; font-family:var(--mono); font-size:8.5px; letter-spacing:.4px; text-transform:uppercase;
+  padding:4px 8px; border-radius:20px; white-space:nowrap;
+}
+.vbadge.err{background:var(--rust-soft); color:var(--rust); border:1px solid rgba(193,80,44,.4);}
+.vbadge.par{background:var(--gold-soft); color:var(--gold-bright); border:1px solid var(--gold-line);}
+.vbadge.ok{background:var(--olive-soft); color:var(--olive); border:1px solid rgba(138,171,94,.4);}
+
+.fase-band{
+  display:flex; align-items:center; gap:10px; margin:24px 2px 12px;
+}
+.fase-band .fn{
+  flex:0 0 auto; width:30px; height:30px; border-radius:9px; background:var(--gold-soft); border:1px solid var(--gold-line);
+  color:var(--gold-bright); display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:12px; font-weight:600;
+}
+.fase-band .ft{display:flex; flex-direction:column; gap:2px;}
+.fase-band .ft strong{font-family:var(--serif); font-size:15.5px; color:var(--ink); line-height:1.1;}
+.fase-band .ft span{font-family:var(--mono); font-size:9.5px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.5px;}
+
+.etapa-meta{display:flex; flex-wrap:wrap; gap:7px; margin:10px 0 4px;}
+.etapa-meta .em{
+  font-family:var(--mono); font-size:9px; letter-spacing:.3px; padding:4px 9px; border-radius:20px;
+  background:var(--panel-3); border:1px solid var(--line); color:var(--ink-dim);
+}
+.etapa-meta .em b{color:var(--ink); font-weight:600;}
+.etapa-meta .em.cost b{color:var(--gold-bright);}
+.done-when{
+  margin-top:10px; padding:9px 11px; border-radius:10px; background:var(--olive-soft);
+  border:1px solid rgba(138,171,94,.3); font-size:11.5px; color:var(--ink-dim); line-height:1.5;
+}
+.done-when b{color:var(--olive); font-family:var(--mono); font-size:9px; letter-spacing:.5px; text-transform:uppercase; display:block; margin-bottom:3px;}
+.risco-line{
+  margin-top:8px; padding-left:11px; border-left:2px solid rgba(193,80,44,.4);
+  font-size:11.5px; color:var(--ink-dim); line-height:1.5;
+}
+.legal-chip{
+  display:inline-block; font-family:var(--mono); font-size:9px; color:var(--gold); background:var(--gold-soft);
+  border:1px solid var(--gold-line); border-radius:5px; padding:2px 6px; margin-top:5px;
+}
+
+.arq-box{
+  border:1px solid var(--line); border-radius:12px; padding:12px 14px; background:var(--panel-2); text-align:center;
+}
+.arq-box.gold{border-color:var(--gold-line); background:linear-gradient(160deg, var(--gold-soft), var(--panel));}
+.arq-box .t{font-family:var(--serif); font-weight:700; font-size:13.5px; color:var(--ink);}
+.arq-box .s{font-family:var(--mono); font-size:9.5px; color:var(--ink-faint); margin-top:3px; text-transform:uppercase; letter-spacing:.4px;}
+.arq-arrow{text-align:center; color:var(--gold); font-size:15px; padding:6px 0; font-family:var(--mono);}
+.arq-arrow small{display:block; font-size:9.5px; color:var(--ink-faint); font-family:var(--mono); letter-spacing:.4px;}
+
+.warn-card{
+  background:linear-gradient(150deg, rgba(193,80,44,.14), var(--panel)); border:1px solid rgba(193,80,44,.4);
+  border-radius:16px; padding:18px; margin-bottom:14px;
+}
+.warn-card h3{font-size:16px; color:var(--ink); margin-bottom:8px;}
+.warn-card p{font-size:12.5px; color:var(--ink-dim); line-height:1.6;}
+
 /* ===== Legenda de gráfico (preço x NAV) ===== */
 .chart-legend{display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; padding-left:4px;}
 .chart-legend .lg{display:inline-flex; align-items:center; gap:7px; font-size:11px; color:var(--ink-dim);}

@@ -398,6 +398,531 @@
 
     </section>
 
+    <!-- CAMINHO DE IMPLANTAÇÃO -->
+    <section class="view hidden" data-view="implantacao">
+
+      <div class="verdict-hero">
+        <span class="eyebrow">Do Zero ao Lançamento</span>
+        <h1>O caminho real — e por que ele não passa por um FIP.</h1>
+        <p>Pesquisa com verificação adversarial contra fontes primárias (CVM, Planalto, STJ, CARF, ANBIMA). O veredito é desconfortável, mas te economiza meses e centenas de milhares de reais: <strong style="color:var(--ink);">quatro das cinco premissas do plano original estão erradas</strong>.</p>
+      </div>
+
+      <div class="m-card" style="border-color:rgba(193,80,44,.35);">
+        <h3 style="margin-bottom:4px;">O que foi verificado</h3>
+        <p class="hint" style="margin-bottom:10px;">Cada linha foi checada na norma vigente, não em resumo de blog.</p>
+
+        <div class="premissa">
+          <div class="top"><span class="pq">Funcionários CLT recebem cotas do FIP</span><span class="vbadge err">Errada</span></div>
+          <p class="real">Art. 4º do Anexo IV da Res. CVM 175: <em>“somente podem investir no FIP investidores qualificados”</em>. Investidor qualificado = R$ 1 milhão em investimentos + termo assinado, ou certificação aprovada pela CVM. Um CLT de academia não se enquadra — e isso <strong style="color:var(--rust);">mata o desenho na origem</strong>.</p>
+        </div>
+        <div class="premissa">
+          <div class="top"><span class="pq">CFG + CGE me habilitam a montar e gerir o fundo</span><span class="vbadge err">Errada</span></div>
+          <p class="real">Res. CVM 21, art. 2º: gerir carteira é atividade <strong>privativa de quem a CVM autoriza</strong>. A certificação é apenas 1 dos 11 requisitos cumulativos do art. 3º. E a CFG sequer está na lista de certificações aceitas — ela é só pré-requisito da ANBIMA para prestar a CGE.</p>
+        </div>
+        <div class="premissa">
+          <div class="top"><span class="pq">Eu registro o fundo na CVM</span><span class="vbadge err">Errada</span></div>
+          <p class="real">O registro é <strong>automático</strong> e sai em ~1 dia — mas quem o protocola é o <strong>administrador fiduciário</strong>, que precisa ser pessoa jurídica autorizada. Você não tem legitimidade para esse ato.</p>
+        </div>
+        <div class="premissa">
+          <div class="top"><span class="pq">Patrimônio de R$ 100–300 mil</span><span class="vbadge err">Errada</span></div>
+          <p class="real">Pisos reais de administrador + gestor observados em regulamentos: de <strong>R$ 10 mil a R$ 35 mil por mês</strong> — R$ 120 mil a R$ 420 mil por ano. Sobre um patrimônio de R$ 300 mil, o custo consome de 40% a 140% ao ano. Além disso, a classe que ficar 90 dias abaixo de R$ 1 milhão precisa ser liquidada.</p>
+        </div>
+        <div class="premissa">
+          <div class="top"><span class="pq">Custo inicial R$ 40–82k / anual R$ 31–73k</span><span class="vbadge err">Errada nos dois sentidos</span></div>
+          <p class="real">Para FIP, subestima de 2 a 6 vezes. Para a estrutura certa (holding S.A.), <strong>superestima</strong> — o caminho recomendado cabe dentro desse orçamento.</p>
+        </div>
+        <div class="premissa">
+          <div class="top"><span class="pq">Lançar em ~6 meses</span><span class="vbadge par">Parcialmente certa</span></div>
+          <p class="real">O prazo é factível. Mas o gargalo não é a CVM — é a negociação com os controladores, o jurídico, o laudo de avaliação e o sindicato.</p>
+        </div>
+      </div>
+
+      <div class="gap-card">
+        <h3>A frase que resume</h3>
+        <p style="font-size:14px; color:var(--ink); line-height:1.65;">Você não precisa de um fundo. Você precisa de uma <strong style="color:var(--gold-bright);">S.A. de capital fechado com plano de participação e acordo de acionistas</strong>.</p>
+        <p style="margin-top:10px;">Isso entrega exatamente o que você desenhou — bonificação por performance, compra recorrente, liquidez interna, recompra na saída — e custa de 3 a 45 vezes menos. Não exige investidor qualificado, nem administrador fiduciário, nem gestor registrado na CVM, nem certificação ANBIMA, e não passa por análise da CVM.</p>
+      </div>
+
+      <div class="m-card">
+        <h3 style="margin-bottom:4px;">O que continua valendo do seu plano</h3>
+        <div class="diff-list" style="margin-top:12px;">
+          <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>O produto faz sentido</strong><span>Participação de colaborador em rede de franquia é raro no Brasil — não há benchmark público em escala de milhares de CLT. Isso é vantagem competitiva, não sinal de impossibilidade.</span></div></div>
+          <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>A mecânica é 100% reproduzível</strong><span>Bonificação, compra recorrente, liquidez interna e recompra na saída existem tranquilamente em direito societário. Só não com fundo.</span></div></div>
+          <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Este sistema é ~80% aproveitável</strong><span>Precisa dos 7 ajustes de conformidade listados mais abaixo — principalmente tirar o vocabulário de “mercado” e a dualidade de preço.</span></div></div>
+        </div>
+      </div>
+
+      <div class="group-label" style="margin-top:22px;"><span>A Arquitetura Recomendada</span></div>
+      <div class="m-card">
+        <div class="arq-box"><div class="t">Família Aguiar</div><div class="s">controladores</div></div>
+        <div class="arq-arrow">↓<small>90% a 97,5%</small></div>
+        <div class="arq-box"><div class="t">Academia Gaviões</div><div class="s">operadora · S.A. fechada</div></div>
+        <div class="arq-arrow">↑<small>2,5% a 10% — participação minoritária</small></div>
+        <div class="arq-box gold"><div class="t">Gaviões Participações S.A.</div><div class="s">capital fechado · capital autorizado</div></div>
+        <div class="arq-arrow">↑<small>ações preferenciais sem voto</small></div>
+        <div class="arq-box"><div class="t">Colaboradores</div><div class="s">+ tesouraria da companhia</div></div>
+
+        <p class="hint" style="margin-top:16px;">Três pernas econômicas, juridicamente separadas:</p>
+        <div class="flow" style="margin-top:12px;">
+          <div class="flow-step"><span class="flow-n">1</span><div><strong>Perna comprada</strong><p>Colaborador adquire ações com dinheiro próprio, assumindo risco real. É a perna mais blindada — voluntariedade + onerosidade + risco.</p></div></div>
+          <div class="flow-step"><span class="flow-n">2</span><div><strong>Perna bonificada</strong><p>Vira <strong>prêmio</strong> (CLT art. 457, §§2º e 4º) ou <strong>PLR</strong> (Lei 10.101/2000) pago <strong>em dinheiro</strong>. O colaborador usa esse dinheiro para comprar ação num ato voluntário e separado. Nunca entregue ação de graça.</p></div></div>
+          <div class="flow-step last"><span class="flow-n">3</span><div><strong>Perna de liquidez</strong><p>Janelas periódicas a preço por fórmula, com preferência entre acionistas e recompra pela companhia como último degrau da cascata.</p></div></div>
+        </div>
+      </div>
+
+      <div class="group-label" style="margin-top:22px;"><span>Pré-Requisitos Inegociáveis</span></div>
+      <div class="m-card">
+        <p class="hint" style="margin-bottom:12px;">Lei e regulação. Não há como contornar — só desenhar em volta.</p>
+        <div class="insight-row"><span class="n">1</span><div class="txt"><strong>FIP só aceita investidor qualificado</strong><span>Vale para todos os tipos, inclusive Capital Semente e Empresas Emergentes.<span class="legal-chip">Res. CVM 175, Anexo IV, art. 4º</span></span></div></div>
+        <div class="insight-row"><span class="n">2</span><div class="txt"><strong>Fundo exige administrador fiduciário PJ + gestor autorizado</strong><span>Nenhum dos dois pode ser você hoje.<span class="legal-chip">Res. CVM 175, Parte Geral, art. 3º</span></span></div></div>
+        <div class="insight-row"><span class="n">3</span><div class="txt"><strong>Plano de opção de compra exige S.A.</strong><span>Com previsão estatutária, capital autorizado e aprovação em assembleia. Não existe para Ltda.<span class="legal-chip">Lei 6.404/76, art. 168, §3º</span></span></div></div>
+        <div class="insight-row"><span class="n">4</span><div class="txt"><strong>Mercado organizado sem autorização da CVM é crime</strong><span>Detenção de 6 meses a 2 anos e multa. Por isso o sistema precisa dos ajustes da seção final.<span class="legal-chip">Res. CVM 135 · Lei 6.385/76, art. 27-E</span></span></div></div>
+        <div class="insight-row"><span class="n">5</span><div class="txt"><strong>Desconto em folha só com lei ou contrato coletivo</strong><span>Compra de ação não está na lista da Súmula 342 do TST.<span class="legal-chip">CLT art. 462 · Súmula 342/TST</span></span></div></div>
+        <div class="insight-row"><span class="n">6</span><div class="txt"><strong>Plano de remuneração fica fora de oferta pública — mas sem publicidade</strong><span>Comunicação interna sim; campanha publicitária não.<span class="legal-chip">Res. CVM 160, art. 8º, III e §2º</span></span></div></div>
+        <div class="insight-row"><span class="n">7</span><div class="txt"><strong>Recompra pela companhia só até o saldo de lucros e reservas</strong><span>Sem reduzir capital. É o que limita o tamanho da tesouraria.<span class="legal-chip">Lei 6.404/76, art. 30, §1º, “b”</span></span></div></div>
+        <div class="insight-row"><span class="n">8</span><div class="txt"><strong>Restrição à circulação de ações não pode ser arbitrária</strong><span>Precisa ser regulada minuciosamente e não pode impedir a negociação nem sujeitar o acionista ao arbítrio da maioria.<span class="legal-chip">Lei 6.404/76, art. 36</span></span></div></div>
+      </div>
+
+      <div class="group-label" style="margin-top:22px;"><span>O Caminho, Etapa por Etapa</span></div>
+
+      <!-- FASE 0 -->
+      <div class="fase-band"><span class="fn">0</span><div class="ft"><strong>Decisões que travam tudo</strong><span>Antes de contratar ninguém</span></div></div>
+      <div class="accordion" id="acc-fase0">
+        <div class="acc-item open">
+          <button class="acc-head">1 · Alinhamento com os controladores <span class="acc-ico">−</span></button>
+          <div class="acc-body">
+            <p><strong>Objetivo:</strong> confirmar que a família Aguiar aceita ceder participação e governança antes de gastar um real.</p>
+            <p style="margin-top:8px;"><strong>O que fazer</strong> — reunião formal com Priscila, Leandro e Daniel, com 6 perguntas fechadas:</p>
+            <ul>
+              <li>Que percentual da operadora vocês aceitam ceder? (2,5% / 5% / 10%)</li>
+              <li>Aceitam transformar a operadora em S.A. de capital fechado, se ainda não for?</li>
+              <li>Aceitam que a holding tenha direito a informação periódica e assento consultivo?</li>
+              <li>Aceitam pagar dividendo com regularidade? (sem dividendo, o produto não tem substância)</li>
+              <li>Aceitam auditoria independente das demonstrações, se necessário?</li>
+              <li>Quem banca o custo de estruturação — a operadora ou o veículo?</li>
+            </ul>
+            <p style="margin-top:8px;">Registrar tudo em ata. Nada de “depois a gente vê”.</p>
+            <div class="etapa-meta">
+              <span class="em">Quem: <b>Ari + controladores</b></span>
+              <span class="em">Prazo: <b>2–3 semanas</b></span>
+              <span class="em cost">Custo: <b>R$ 0</b></span>
+            </div>
+            <div class="done-when"><b>Concluída quando</b>Houver ata assinada com o percentual definido e resposta sim/não a cada uma das 6 perguntas.</div>
+            <div class="risco-line"><strong>Risco:</strong> família dizer “sim, mas depois”. Exija número e data na ata — “sim” genérico é não. Se não quiserem diluir, a alternativa é participação sintética (bônus indexado ao valor da empresa), que perde apelo mas mantém o programa vivo.</div>
+          </div>
+        </div>
+        <div class="acc-item">
+          <button class="acc-head">2 · Diagnóstico societário, contábil e de valor <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p><strong>Objetivo:</strong> descobrir se a estrutura atual comporta o desenho e quanto vale a fatia.</p>
+            <ul>
+              <li>Levantar a forma jurídica da operadora — se for Ltda, converter em S.A. é pré-requisito do plano de opções.</li>
+              <li>Levantar ativo total e receita bruta consolidados do grupo.</li>
+              <li><strong>Confirmar se os R$ 113 milhões são receita da franqueadora ou faturamento de rede</strong> (soma dos franqueados). Isso muda tudo: se for faturamento de rede, a receita da PJ emissora é bem menor e abre outras portas.</li>
+              <li>Levantar a política de dividendos dos últimos 3 anos.</li>
+            </ul>
+            <div class="etapa-meta">
+              <span class="em">Quem: <b>Contador + Ari</b></span>
+              <span class="em">Prazo: <b>2 semanas</b></span>
+              <span class="em cost">Custo: <b>R$ 0 – 3.000</b></span>
+            </div>
+            <div class="done-when"><b>Concluída quando</b>Existir uma folha com: forma jurídica, ativo total, receita da PJ emissora, receita de rede, lucro dos últimos 3 anos, dividendos distribuídos e se há auditoria.</div>
+            <div class="risco-line"><strong>Risco:</strong> números não existirem organizados — comum em empresa familiar. Reserve mais 2 semanas e envolva o contador externo.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FASE 1 -->
+      <div class="fase-band"><span class="fn">1</span><div class="ft"><strong>Fundação jurídica</strong><span>Meses 1 a 4 · 90% do custo e 100% do risco</span></div></div>
+      <div class="accordion" id="acc-fase1">
+        <div class="acc-item">
+          <button class="acc-head">3 · Contratar assessoria jurídica tripla <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p><strong>Objetivo:</strong> ter advogado societário, trabalhista e tributário no mesmo escopo, com uma opinião legal escrita.</p>
+            <p style="margin-top:8px;">Peça proposta a 3 escritórios com prática nas três áreas. Escopo mínimo:</p>
+            <ul>
+              <li>Constituição da S.A. fechada com capital autorizado</li>
+              <li>Plano de participação (art. 168, §3º da Lei 6.404/76)</li>
+              <li>Acordo de acionistas: preferência, cascata de recompra, fórmula de preço, saída, vesting, conflito</li>
+              <li><strong>Opinião legal escrita</strong> sobre os 9 pontos em aberto listados no fim desta página</li>
+              <li>Desenho da perna de bonificação (prêmio do art. 457 ou PLR)</li>
+              <li>Parecer sobre desconto em folha e necessidade de negociação sindical</li>
+            </ul>
+            <div class="etapa-meta">
+              <span class="em">Quem: <b>Ari contrata</b></span>
+              <span class="em">Prazo: <b>3 sem. escolher + 6–10 entregar</b></span>
+              <span class="em cost">Custo: <b>R$ 25.000 – 60.000</b></span>
+            </div>
+            <div class="done-when"><b>Concluída quando</b>Contrato assinado, escopo fechado por escrito e data de entrega da opinião legal definida.</div>
+            <div class="risco-line"><strong>Risco:</strong> contratar escritório só societário, sem trabalhista — é o erro mais caro possível, porque o maior risco do projeto é trabalhista/previdenciário. Recuse proposta que não cubra as três áreas.</div>
+          </div>
+        </div>
+        <div class="acc-item">
+          <button class="acc-head">4 · Laudo de avaliação (valuation) <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p><strong>Objetivo:</strong> ter um preço defensável para a ação — é ele que sustenta todo o resto.</p>
+            <ul>
+              <li>Contratar empresa independente para laudo da operadora e da fatia da holding.</li>
+              <li>Definir no acordo de acionistas a <strong>fórmula de atualização</strong> entre laudos (múltiplo de EBITDA, valor patrimonial ajustado ou combinação). É ela que alimenta a janela de liquidez sem precisar de laudo novo toda vez.</li>
+              <li>Documentar o desconto de iliquidez aplicado ao preço para o colaborador.</li>
+            </ul>
+            <div class="etapa-meta">
+              <span class="em">Quem: <b>Empresa de avaliação</b></span>
+              <span class="em">Prazo: <b>4–6 semanas</b></span>
+              <span class="em cost">Custo: <b>a cotar (3 propostas)</b></span>
+            </div>
+            <div class="done-when"><b>Concluída quando</b>Laudo entregue, fórmula de atualização escrita e preço inicial da ação definido.</div>
+            <div class="risco-line"><strong>Contradição a resolver aqui:</strong> R$ 300 mil comprando 2,5% implica valuation de R$ 12 milhões — o que não fecha com R$ 113 milhões de faturamento. Ou a fatia é menor, ou o veículo precisa de muito mais capital, ou parte da participação é aportada pela própria família. Resolva nesta etapa, não depois.</div>
+            <div class="risco-line"><strong>Risco:</strong> preço sair alto demais para o bolso do colaborador — resolva por fracionamento (mais ações de menor valor), nunca por preço artificialmente baixo, que tende a ser tratado como remuneração.</div>
+          </div>
+        </div>
+        <div class="acc-item">
+          <button class="acc-head">5 · Constituir a S.A. de capital fechado <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p><strong>Objetivo:</strong> criar o veículo que detém a participação e abriga os colaboradores.</p>
+            <p style="margin-top:8px;">Estatuto precisa conter obrigatoriamente:</p>
+            <ul>
+              <li><strong>Capital autorizado</strong> — sem isso não existe plano de opções</li>
+              <li>Classe de ações preferenciais sem voto para colaboradores (mantém a governança com quem deve)</li>
+              <li>Limitações à circulação: preferência, aprovação prévia e lock-up — reguladas minuciosamente</li>
+              <li>Previsão de aquisição de ações próprias para tesouraria</li>
+              <li>Livros societários em forma eletrônica</li>
+            </ul>
+            <div class="etapa-meta">
+              <span class="em">Quem: <b>Advogado + contador</b></span>
+              <span class="em">Prazo: <b>4–6 semanas</b></span>
+              <span class="em cost">Custo: <b>R$ 2.300 – 6.500</b></span>
+            </div>
+            <div class="done-when"><b>Concluída quando</b>CNPJ ativo, estatuto registrado e participação na operadora formalizada no livro de registro de ações.</div>
+            <div class="risco-line"><strong>Risco:</strong> se a operadora for Ltda, converter em S.A. antes soma 4 a 8 semanas e custo adicional.</div>
+          </div>
+        </div>
+        <div class="acc-item">
+          <button class="acc-head">6 · Plano de Participação e Acordo de Acionistas <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p><strong>Objetivo:</strong> escrever as regras do jogo — é aqui que este sistema vira documento jurídico.</p>
+            <p style="margin-top:8px;"><strong>Plano de Participação</strong> (aprovado em assembleia):</p>
+            <ul>
+              <li>Elegibilidade e tempo mínimo de casa</li>
+              <li><strong>Vesting mínimo de 12 meses</strong> e lock-up definido</li>
+              <li>Preço de exercício ancorado no laudo, com desconto documentado</li>
+              <li>Caráter voluntário expresso e risco de perda assinado pelo colaborador</li>
+              <li>Teto de aquisição por pessoa</li>
+              <li>Regras de saída por tipo: demissão sem justa causa, pedido, justa causa, aposentadoria, falecimento</li>
+            </ul>
+            <p style="margin-top:8px;"><strong>Acordo de Acionistas</strong> (não vai à Junta, altera-se por aditamento):</p>
+            <ul>
+              <li>Cascata de recompra: colaboradores acionistas → holding → tesouraria da companhia</li>
+              <li>Fórmula objetiva de preço, idêntica à da janela de liquidez</li>
+              <li>Prazo de pagamento da recompra (parcelar protege o caixa)</li>
+              <li>Direito de informação e frequência</li>
+              <li>Arbitragem ou foro; cláusula de perda por justa causa validada pelo trabalhista</li>
+            </ul>
+            <div class="etapa-meta">
+              <span class="em">Quem: <b>Advogado + Ari</b></span>
+              <span class="em">Prazo: <b>4–6 semanas</b></span>
+              <span class="em cost">Custo: <b>na etapa 3</b></span>
+            </div>
+            <div class="done-when"><b>Concluída quando</b>Ata de assembleia aprovando o plano + acordo de acionistas assinado pelos fundadores.</div>
+            <div class="risco-line"><strong>Risco:</strong> regras vagas — o CARF e a Justiça do Trabalho atacam exatamente a vagueza. Critérios objetivos, uniformes por cargo e escritos. E dimensione a reserva de recompra desde o dia 1: prometer liquidez e não pagar destrói a confiança interna, que é o ativo principal do produto.</div>
+          </div>
+        </div>
+        <div class="acc-item">
+          <button class="acc-head">7 · Blindagem trabalhista e desenho da bonificação <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p><strong>Objetivo:</strong> garantir que a bonificação não vire salário e que o pagamento não vire desconto ilegal.</p>
+            <ul>
+              <li>Decidir entre <strong>prêmio</strong> (CLT art. 457, §§2º e 4º) e <strong>PLR</strong> (Lei 10.101/2000) para a perna gratuita — e nunca entregar ação de graça.</li>
+              <li>Se houver desconto em folha, iniciar a negociação sindical <strong>agora</strong> — é o item de prazo mais longo e imprevisível.</li>
+              <li>Sem tempo ou disposição sindical? Lance a versão 1 com PIX, boleto ou débito automático, fora do alcance do art. 462 da CLT.</li>
+            </ul>
+            <div class="etapa-meta">
+              <span class="em">Quem: <b>Trabalhista + RH + Ari</b></span>
+              <span class="em">Prazo: <b>4 sem. (sem sindicato) a 12</b></span>
+              <span class="em cost">Custo: <b>na etapa 3</b></span>
+            </div>
+            <div class="done-when"><b>Concluída quando</b>Existir regulamento do prêmio ou acordo de PLR assinado, e definição escrita do meio de pagamento com respaldo jurídico.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FASE 2 -->
+      <div class="fase-band"><span class="fn">2</span><div class="ft"><strong>Piloto controlado</strong><span>Meses 4 a 7 · nunca abra para 3.000 de primeira</span></div></div>
+      <div class="accordion" id="acc-fase2">
+        <div class="acc-item">
+          <button class="acc-head">8 · Piloto com líderes <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p><strong>Objetivo:</strong> validar mecânica, sistema e recepção com 50 a 150 pessoas antes de escalar.</p>
+            <ul>
+              <li>Selecionar gerentes de unidade, coordenadores e time de expansão — renda maior, menor rotatividade, mais capacidade de entender o instrumento.</li>
+              <li>Comunicação interna <strong>sem material publicitário</strong> (vedado pelo art. 8º, §2º da Res. CVM 160).</li>
+              <li>Termo de adesão individual assinado: voluntariedade, risco de perda total, iliquidez, regra de saída e vesting.</li>
+              <li>Primeiro ciclo de aportes.</li>
+            </ul>
+            <div class="etapa-meta">
+              <span class="em">Quem: <b>Ari + RH + jurídico</b></span>
+              <span class="em">Prazo: <b>8–10 semanas</b></span>
+              <span class="em cost">Custo: <b>operacional</b></span>
+            </div>
+            <div class="done-when"><b>Concluída quando</b>Pelo menos 50 termos assinados, aportes liquidados e registrados no livro de ações e no sistema.</div>
+            <div class="risco-line"><strong>Risco:</strong> adesão baixa é sinal de que a comunicação ou o produto não estão claros. Corrigir com 50 pessoas custa nada; com 3.000 custa reputação.</div>
+          </div>
+        </div>
+        <div class="acc-item">
+          <button class="acc-head">9 · Ajuste de conformidade do sistema <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p><strong>Objetivo:</strong> tirar do sistema os elementos que criam risco regulatório. São os 7 ajustes listados no fim desta página — a etapa mais barata e direta de todas.</p>
+            <div class="etapa-meta">
+              <span class="em">Quem: <b>Ari (é código)</b></span>
+              <span class="em">Prazo: <b>1–2 semanas</b></span>
+              <span class="em cost">Custo: <b>R$ 0</b></span>
+            </div>
+            <div class="done-when"><b>Concluída quando</b>Os 7 ajustes estiverem implantados e revisados pelo advogado.</div>
+          </div>
+        </div>
+        <div class="acc-item">
+          <button class="acc-head">10 · Primeira janela de liquidez e primeira distribuição <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p><strong>Objetivo:</strong> provar que o mecanismo de saída e o de renda funcionam de verdade.</p>
+            <ul>
+              <li>Executar uma janela de liquidez de teste, ainda que simbólica: preço por fórmula, fila por ordem de solicitação, cascata de compradores e termos lavrados no livro.</li>
+              <li>Distribuir o primeiro dividendo, mesmo pequeno, com o informe fiscal correto.</li>
+              <li>Publicar extrato individual para cada participante.</li>
+            </ul>
+            <div class="etapa-meta">
+              <span class="em">Quem: <b>Ari + contador + jurídico</b></span>
+              <span class="em">Prazo: <b>4 semanas</b></span>
+              <span class="em cost">Custo: <b>operacional</b></span>
+            </div>
+            <div class="done-when"><b>Concluída quando</b>Ao menos 3 transferências efetivadas no livro e 1 distribuição paga com comprovante fiscal.</div>
+            <div class="risco-line"><strong>Risco:</strong> ninguém querer vender é ótimo sinal — mas execute a janela mesmo assim, para testar o processo.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FASE 3 -->
+      <div class="fase-band"><span class="fn">3</span><div class="ft"><strong>Escala</strong><span>Meses 8 a 18</span></div></div>
+      <div class="accordion" id="acc-fase3">
+        <div class="acc-item">
+          <button class="acc-head">11 · Abertura para a base <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p><strong>Objetivo:</strong> levar o programa aos milhares de colaboradores, em ondas.</p>
+            <ul>
+              <li>Abrir por ondas (região, unidade, tempo de casa), nunca tudo de uma vez.</li>
+              <li><strong>Teto de aporte por faixa salarial</strong> — proteção contra reclamatória e contra risco reputacional de alguém aportando R$ 3.000/mês num ativo ilíquido com salário de academia.</li>
+              <li>Programa de educação financeira acoplado: o colaborador precisa entender que pode perder e que não saca quando quiser.</li>
+              <li>Se a convenção coletiva tiver saído, ativar o desconto em folha aqui.</li>
+            </ul>
+            <div class="etapa-meta">
+              <span class="em">Quem: <b>Ari + RH + comunicação</b></span>
+              <span class="em">Prazo: <b>6–12 meses em ondas</b></span>
+              <span class="em cost">Custo: <b>operacional</b></span>
+            </div>
+            <div class="done-when"><b>Concluída quando</b>A meta de adesão definida na etapa 1 for atingida com o processo de liquidez rodando sem incidente.</div>
+            <div class="risco-line"><strong>Risco:</strong> rotatividade alta gerando fila de recompra maior que o caixa. Limite o volume por janela, com fila rolando para a janela seguinte — previsto no acordo.</div>
+          </div>
+        </div>
+        <div class="acc-item">
+          <button class="acc-head">12 · Ciclo anual permanente <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p><strong>Todo ano:</strong> atualização do laudo ou da fórmula de preço · demonstrações contábeis da holding · assembleia geral ordinária · 2 a 4 janelas de liquidez · revisão do plano de prêmio/PLR · revisão jurídica anual.</p>
+            <div class="etapa-meta">
+              <span class="em">Quem: <b>Contador + advogado + Ari</b></span>
+              <span class="em">Prazo: <b>permanente</b></span>
+            </div>
+            <div class="risco-line"><strong>Gatilho de revisão:</strong> há repetitivo pendente no STJ (Tema 1.379) sobre contribuição previdenciária em stock options. Quando for julgado, revise o desenho inteiro.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FASE 4 -->
+      <div class="fase-band"><span class="fn">4</span><div class="ft"><strong>O produto para franqueadoras</strong><span>Só depois da Fase 2 concluída</span></div></div>
+      <div class="accordion" id="acc-fase4">
+        <div class="acc-item">
+          <button class="acc-head">13 · Empacotamento e venda <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p><strong>Objetivo:</strong> monetizar sem herdar passivo dos clientes.</p>
+            <ul>
+              <li><strong>Venda o sistema, não o parecer.</strong> Software de gestão de participação (posição, vesting, extrato, janelas, cascata, comunicação, educação financeira) + metodologia de implantação.</li>
+              <li>A parte jurídica sai por <strong>escritório parceiro que assina e responde tecnicamente</strong>. Você não escreve estatuto nem acordo de acionistas.</li>
+              <li>Contrato com limitação de responsabilidade e exigência de que o cliente contrate o próprio jurídico.</li>
+            </ul>
+            <div class="etapa-meta">
+              <span class="em">Quem: <b>Ari + escritório parceiro</b></span>
+              <span class="em">Prazo: <b>após a Fase 2</b></span>
+            </div>
+            <div class="done-when"><b>Concluída quando</b>Primeiro cliente externo implantado com o modelo de responsabilidade segregada.</div>
+            <div class="risco-line"><strong>Risco:</strong> replicar um defeito em escala — cada erro de desenho vira passivo trabalhista multiplicado por cliente. Nunca venda antes da opinião legal escrita da etapa 3.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FASE 5 -->
+      <div class="fase-band"><span class="fn">5</span><div class="ft"><strong>FIP — condicional</strong><span>Produto paralelo, para outro público</span></div></div>
+      <div class="accordion" id="acc-fase5">
+        <div class="acc-item">
+          <button class="acc-head">14 · Gatilho e execução do FIP <span class="acc-ico">+</span></button>
+          <div class="acc-body">
+            <p>O FIP só entra em pauta quando <strong>as duas pernas do gatilho</strong> forem verdadeiras ao mesmo tempo:</p>
+            <div class="scenario-row"><span class="k">Patrimônio do veículo</span><span class="v">≥ R$ 10 milhões</span></div>
+            <div class="scenario-row"><span class="k">Público</span><span class="v">investidores qualificados</span></div>
+            <p style="margin-top:12px;">O patrimônio mínimo vem do custo fixo: com R$ 120–240 mil/ano de administrador e gestor, e a regra prática de que o custo não passe de 2% ao ano do patrimônio, o ponto de equilíbrio fica entre R$ 6 e R$ 12 milhões.</p>
+            <p style="margin-top:8px;"><strong>E o público nunca muda:</strong> o art. 4º do Anexo IV não flexibiliza com o tamanho do fundo. FIP não vai servir para o CLT comum nem com R$ 300 mil, nem com R$ 300 milhões.</p>
+            <div class="done-when" style="background:var(--gold-soft); border-color:var(--gold-line);"><b style="color:var(--gold-bright);">Leia isto com atenção</b>O FIP <strong>não é o “próximo estágio”</strong> do programa dos colaboradores. É um produto paralelo, para outro público (franqueados, executivos com patrimônio, family office). Nunca prometa a um colaborador que “um dia vira fundo”.</div>
+            <p style="margin-top:12px;"><strong>Se um dia os dois gatilhos baterem:</strong> peça 3 propostas a administradores fiduciários (Vórtx, Oliveira Trust, Singulare, BRL Trust, BTG) descrevendo “FIP de ativo único, companhia fechada, dispensa de custódia pelo art. 25, §1º do Anexo IV”. A custódia é dispensada quando o investimento é em companhia fechada — não some essa linha na conta.</p>
+            <div class="etapa-meta">
+              <span class="em">Prazo: <b>60–90 dias com prestadores</b></span>
+              <span class="em cost">Custo: <b>R$ 120.000 – 420.000/ano</b></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="group-label" style="margin-top:22px;"><span>Custos Consolidados</span></div>
+      <div class="m-card">
+        <h3 style="margin-bottom:10px;">Setup — Fases 0 e 1</h3>
+        <div class="scenario-row"><span class="k">Assessoria jurídica tripla + opinião legal</span><span class="v">R$ 25–60 mil</span></div>
+        <div class="scenario-row"><span class="k">Constituição da S.A. (Junta/cartório)</span><span class="v">R$ 300–1.500</span></div>
+        <div class="scenario-row"><span class="k">Abertura contábil</span><span class="v">R$ 2–5 mil</span></div>
+        <div class="scenario-row"><span class="k">Laudo de avaliação</span><span class="v">a cotar</span></div>
+        <div class="scenario-row total"><span class="k">Total de setup (sem laudo)</span><span class="v">R$ 27–67 mil</span></div>
+        <p class="hint" style="margin-top:10px;">Cabe dentro do orçamento de R$ 40–82 mil que você já tinha em mente — só que para uma estrutura que de fato funciona.</p>
+      </div>
+      <div class="m-card">
+        <h3 style="margin-bottom:10px;">Recorrente anual — estrutura societária</h3>
+        <div class="scenario-row"><span class="k">Contabilidade da holding</span><span class="v">R$ 9,6–36 mil</span></div>
+        <div class="scenario-row"><span class="k">Revisão jurídica anual</span><span class="v">R$ 5–15 mil</span></div>
+        <div class="scenario-row"><span class="k">Atualização de laudo / fórmula</span><span class="v">a cotar</span></div>
+        <div class="scenario-row total"><span class="k">Total recorrente</span><span class="v">R$ 15–51 mil/ano</span></div>
+      </div>
+      <div class="m-card" style="border-color:rgba(193,80,44,.35);">
+        <h3 style="margin-bottom:10px;">A comparação que decide tudo</h3>
+        <div class="stat-grid">
+          <div class="kpi-card"><span class="lbl">Holding S.A.</span><span class="val">5% a 17%</span><span class="sub pos">custo anual sobre R$ 300 mil</span></div>
+          <div class="kpi-card"><span class="lbl">FIP</span><span class="val">40% a 140%</span><span class="sub neg">custo anual sobre R$ 300 mil</span></div>
+        </div>
+        <p class="hint" style="margin-top:12px;">O FIP não é caro — ele é <strong>matematicamente impossível</strong> nessa escala. O custo fixo mínimo consome de 40% a 140% do patrimônio por ano, contra dividendos projetados de 10% ao ano.</p>
+      </div>
+
+      <div class="group-label" style="margin-top:22px;"><span>Blindagem Trabalhista</span></div>
+      <div class="warn-card">
+        <h3>O maior risco do projeto não é a CVM</h3>
+        <p>É trabalhista e previdenciário. Se as ações bonificadas forem reclassificadas como salário, entram na base de FGTS (8%), INSS patronal (~20% + RAT + terceiros), férias + 1/3, 13º e verbas rescisórias — multiplicado por cabeça e por ano.</p>
+      </div>
+      <div class="m-card">
+        <h3 style="margin-bottom:4px;">Onde a jurisprudência está hoje</h3>
+        <p class="hint" style="margin-bottom:12px;">Julho de 2026 — e há uma peça decisiva ainda em aberto.</p>
+        <div class="scenario-row"><span class="k">STJ, Tema 1.226 (set/2024)</span><span class="v" style="color:var(--olive);">favorável</span></div>
+        <p class="hint" style="margin:-4px 0 10px;">Stock option tem natureza <strong>mercantil</strong>; IRPF só na revenda. Vinculante — <strong>mas só para IRPF</strong>.</p>
+        <div class="scenario-row"><span class="k">STJ, Tema 1.379</span><span class="v" style="color:var(--gold-bright);">pendente</span></div>
+        <p class="hint" style="margin:-4px 0 10px;">Vai decidir se incide contribuição previdenciária. Processos suspensos nacionalmente. <strong>Ninguém pode afirmar hoje qual é “a” jurisprudência previdenciária.</strong></p>
+        <div class="scenario-row"><span class="k">CARF, caso Cielo (mar/2026)</span><span class="v" style="color:var(--rust);">desfavorável</span></div>
+        <p class="hint" style="margin:-4px 0 10px;">Por voto de qualidade, manteve a contribuição. Fundamento: outorga <strong>sem cobrança</strong> elimina o risco financeiro e descaracteriza a natureza mercantil. É exatamente por isso que a bonificação nunca pode ser ação de graça.</p>
+        <div class="scenario-row"><span class="k">CARF, plano do Banco do Brasil (2020)</span><span class="v" style="color:var(--olive);">favorável</span></div>
+        <p class="hint" style="margin:-4px 0 10px;">Compra com desconto de 6,72% a 12% e lock-up de 120 dias: natureza <strong>não</strong> remuneratória. Precedente em desenho quase idêntico ao recomendado aqui.</p>
+        <div class="scenario-row"><span class="k">Marco Legal das Stock Options (PL 2.724/2022)</span><span class="v">não virou lei</span></div>
+        <p class="hint" style="margin:-4px 0 4px;">Cuidado: circula muito conteúdo dizendo que a Lei 14.973/2024 seria o marco legal — <strong>é falso</strong>, ela trata de reoneração da folha.</p>
+      </div>
+      <div class="m-card">
+        <h3 style="margin-bottom:12px;">As ações concretas de blindagem</h3>
+        <div class="insight-row"><span class="n">1</span><div class="txt"><strong>Nunca entregar ação de graça</strong><span>É o gatilho exato do voto vencedor no caso Cielo.</span></div></div>
+        <div class="insight-row"><span class="n">2</span><div class="txt"><strong>Perna comprada sempre onerosa e com risco real</strong><span>Preço ancorado no laudo, desconto documentado, risco de perda declarado e assinado.</span></div></div>
+        <div class="insight-row"><span class="n">3</span><div class="txt"><strong>Perna bonificada em dinheiro, não em ação</strong><span>Prêmio (CLT art. 457, §§2º e 4º — não integra remuneração nem é base de encargo, mesmo se habitual) ou PLR (Lei 10.101/2000 — máximo 2 pagamentos por ano). Atenção: prêmio decorrente de obrigação legal ou acordo coletivo <strong>perde a proteção</strong>.</span></div></div>
+        <div class="insight-row"><span class="n">4</span><div class="txt"><strong>Compra em ato voluntário e separado</strong><span>O colaborador usa o dinheiro do prêmio para comprar, em momento diferente e com documento próprio. Se bonificação e compra forem o mesmo ato, o desenho colapsa.</span></div></div>
+        <div class="insight-row"><span class="n">5</span><div class="txt"><strong>Vesting mínimo de 12 meses e lock-up</strong><span>Reduz a habitualidade percebida e reforça a natureza de longo prazo.</span></div></div>
+        <div class="insight-row"><span class="n">6</span><div class="txt"><strong>Sem valor garantido e sem proteção contra perda</strong><span>Cláusula de limitação de perdas é indicador clássico de natureza salarial.</span></div></div>
+        <div class="insight-row"><span class="n">7</span><div class="txt"><strong>Desconto em folha: use PIX, boleto ou débito automático</strong><span>O art. 462 da CLT veda descontos salvo lei ou contrato coletivo, e compra de ação não está na Súmula 342 do TST. Pagamento por fora da folha simplesmente não é alcançado pelo art. 462 — é a rota da versão 1.</span></div></div>
+        <div class="insight-row"><span class="n">8</span><div class="txt"><strong>Teto de aporte de 10% do salário base</strong><span>Bem abaixo dos limites legais (OJ 18 da SDC/TST: 70%; Lei 10.820/2003: 35%). R$ 3.000/mês num salário de academia estoura os dois e cria risco reputacional.</span></div></div>
+        <div class="insight-row"><span class="n">9</span><div class="txt"><strong>Termo de adesão individual assinado</strong><span>Voluntariedade, risco de perda total, iliquidez, vesting, regra de saída e direito de revogar a autorização a qualquer tempo.</span></div></div>
+        <div class="insight-row"><span class="n">10</span><div class="txt"><strong>Revisão jurídica anual obrigatória</strong><span>Com gatilho específico para quando o STJ julgar o Tema 1.379.</span></div></div>
+      </div>
+
+      <div class="group-label" style="margin-top:22px;"><span>Tributação</span></div>
+      <div class="m-card">
+        <h3 style="margin-bottom:4px;">A conta que também derruba o FIP</h3>
+        <p class="hint" style="margin-bottom:12px;">Colaborador recebendo R$ 300/mês de renda:</p>
+        <div class="scenario-row"><span class="k">Dividendo de ação da holding</span><span class="v" style="color:var(--olive);">R$ 0 de imposto</span></div>
+        <div class="scenario-row"><span class="k">Distribuição de FIP</span><span class="v" style="color:var(--rust);">R$ 45 (15% IRRF)</span></div>
+        <p class="hint" style="margin-top:10px;">Dividendo é isento até R$ 50 mil/mês por empresa pagadora (Lei 15.270/2025). O FIP tem IRRF de 15% sem faixa de isenção (Lei 14.754/2023). <strong>O FIP tributa pior justamente quem você quer beneficiar.</strong></p>
+      </div>
+      <div class="m-card">
+        <h3 style="margin-bottom:12px;">O que fazer na prática</h3>
+        <div class="diff-list">
+          <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Registrar o custo de aquisição individual desde o dia 1</strong><span>Campo imutável e auditável. Sem isso, o imposto de ganho de capital incide sobre o valor cheio na venda.</span></div></div>
+          <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Emitir informe de rendimentos anual</strong><span>Para cada participante, todo ano.</span></div></div>
+          <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Nenhum colaborador será atingido pelas novas regras de dividendo</strong><span>A retenção de 10% só vale acima de R$ 50 mil/mês, e o imposto mínimo só acima de R$ 600 mil/ano. Mas vale alertar os controladores — a eles isso pode atingir.</span></div></div>
+          <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Definir o limite de isenção do ganho de capital antes da primeira janela</strong><span>R$ 35 mil/mês (regra geral) ou R$ 20 mil (balcão)? Muda materialmente a economia do secundário interno. Pergunta obrigatória ao tributarista.</span></div></div>
+        </div>
+      </div>
+
+      <div class="group-label" style="margin-top:22px;"><span>Ajustes Neste Sistema</span></div>
+      <div class="warn-card">
+        <h3>Três coisas aqui criam risco regulatório real</h3>
+        <p>A Res. CVM 88, art. 15, §2º <strong>veda expressamente</strong> termos que induzam a erro sobre a existência de mercado regulamentado — citando nominalmente “bolsa”, “mercado de bolsa”, “mercado de balcão” e <strong>“mercado secundário”</strong>. E o §1º veda sistema centralizado e multilateral de negociação com formação de preço. Operar mercado organizado sem autorização é crime (Lei 6.385/76, art. 27-E: detenção de 6 meses a 2 anos).</p>
+        <p style="margin-top:10px;">Ou seja: o “Mercado de Cotas” e a dualidade NAV × cotação que construímos são justamente o que precisa mudar antes de qualquer uso real.</p>
+      </div>
+      <div class="m-card">
+        <div class="insight-row"><span class="n">1</span><div class="txt"><strong>Renomear “Mercado de Cotas”</strong><span>Vira “Janela de Liquidez” ou “Transferência entre Participantes”. Nunca “mercado”, “bolsa” ou “secundário”.</span></div></div>
+        <div class="insight-row"><span class="n">2</span><div class="txt"><strong>Eliminar “cotação” e “preço de mercado”</strong><span>Fica apenas <strong>um</strong> preço: o apurado por fórmula ou laudo. A dualidade de preço é exatamente o que caracteriza formação de preço.</span></div></div>
+        <div class="insight-row"><span class="n">3</span><div class="txt"><strong>Remover livro de ofertas e casamento automático</strong><span>Sem book, sem spread, sem gráfico de preço, sem casamento contínuo.</span></div></div>
+        <div class="insight-row"><span class="n">4</span><div class="txt"><strong>Trocar por janelas periódicas</strong><span>Trimestrais, com data fixa, preço único, fila por ordem de solicitação e rateio.</span></div></div>
+        <div class="insight-row"><span class="n">5</span><div class="txt"><strong>Aprovação formal em cada transferência</strong><span>Lavrada em termo no livro de Transferência de Ações Nominativas (Lei 6.404/76, art. 31, §1º).</span></div></div>
+        <div class="insight-row"><span class="n">6</span><div class="txt"><strong>Trocar “cotas” por “ações” e “fundo” por “programa”</strong><span>Não é cosmético: “fundo” e “cotas” na comunicação externa podem ser lidos pela CVM como oferta irregular de cotas de fundo.</span></div></div>
+        <div class="insight-row"><span class="n">7</span><div class="txt"><strong>Registrar custo de aquisição individual</strong><span>Campo obrigatório, imutável, auditável — base do imposto de cada participante.</span></div></div>
+        <p class="hint" style="margin-top:14px;"><strong>Alternativa que elimina o problema pela raiz:</strong> substituir a transferência entre participantes por <strong>recompra pela companhia</strong> a valor por fórmula. Mais simples, mais seguro, e mantém a promessa de liquidez.</p>
+      </div>
+
+      <div class="group-label" style="margin-top:22px;"><span>Levar ao Advogado</span></div>
+      <div class="m-card">
+        <p class="hint" style="margin-bottom:12px;">Lista fechada. Leve exatamente estes pontos para a reunião da etapa 3 — a pesquisa não fechou nenhum deles.</p>
+        <div class="insight-row"><span class="n">1</span><div class="txt"><strong>A compra de ações está abrigada pela dispensa do art. 8º, III da Res. CVM 160?</strong><span>O inciso fala em ofertas “decorrentes de plano de remuneração”; compra à vista é venda. <strong>É o ponto jurídico mais aberto do projeto inteiro.</strong></span></div></div>
+        <div class="insight-row"><span class="n">2</span><div class="txt"><strong>Onde está a linha entre comunicação interna e material publicitário?</strong><span>Vedado pelo art. 8º, §2º da Res. CVM 160, num lançamento para 3.000 pessoas.</span></div></div>
+        <div class="insight-row"><span class="n">3</span><div class="txt"><strong>S.A. fechada com milhares de acionistas empregados dispara registro de emissor na CVM?</strong><span>E a transferência recorrente entre eles configura mercado de balcão irregular?</span></div></div>
+        <div class="insight-row"><span class="n">4</span><div class="txt"><strong>A holding se enquadra na dispensa de publicação do art. 294 da Lei 6.404/76?</strong><span>Ou é excluída por ser controladora / filiada a grupo econômico?</span></div></div>
+        <div class="insight-row"><span class="n">5</span><div class="txt"><strong>Qual limite de isenção de ganho de capital se aplica?</strong><span>R$ 35 mil/mês (regra geral) ou R$ 20 mil (balcão), na venda de ação de companhia fechada entre colaboradores.</span></div></div>
+        <div class="insight-row"><span class="n">6</span><div class="txt"><strong>O prêmio proposto sobrevive ao teste de “liberalidade”?</strong><span>Dado que estará escrito em regulamento com critérios objetivos (art. 457 da CLT + SC COSIT 151/2019 e 10/2026).</span></div></div>
+        <div class="insight-row"><span class="n">7</span><div class="txt"><strong>A negociação sindical para desconto em folha é viável no prazo?</strong><span>Se não, confirmar que PIX/boleto/débito automático está inteiramente fora do art. 462 da CLT.</span></div></div>
+        <div class="insight-row"><span class="n">8</span><div class="txt"><strong>Vender essa estruturação a outras franqueadoras exige registro na CVM?</strong><span>Pode configurar consultoria de valores mobiliários (Res. CVM 19). Decisivo para a Fase 4.</span></div></div>
+        <div class="insight-row"><span class="n">9</span><div class="txt"><strong>O art. 112, §1º da Res. CVM 175 se aplica a FIP?</strong><span>Ele permite empregados de prestadores e partes relacionadas serem cotistas de classe restrita sem qualificação — mas pode ser afastado pelo art. 4º do Anexo IV. Ponto genuinamente ambíguo, sem manifestação conhecida da CVM.</span></div></div>
+      </div>
+
+      <div class="group-label" style="margin-top:22px;"><span>Resumo em 10 Linhas</span></div>
+      <div class="m-card">
+        <div class="insight-row"><span class="n">1</span><div class="txt"><strong>Esqueça o FIP</strong><span>Proibido para CLT comum, custa R$ 120–420 mil/ano e tributa pior o pequeno cotista.</span></div></div>
+        <div class="insight-row"><span class="n">2</span><div class="txt"><strong>Faça uma S.A. de capital fechado</strong><span>Com capital autorizado, plano de participação e acordo de acionistas.</span></div></div>
+        <div class="insight-row"><span class="n">3</span><div class="txt"><strong>Setup R$ 27–67 mil, recorrente R$ 15–51 mil/ano</strong><span>Dentro do orçamento que você já tinha, para uma estrutura que funciona.</span></div></div>
+        <div class="insight-row"><span class="n">4</span><div class="txt"><strong>A CVM não é o gargalo</strong><span>O gargalo é a família Aguiar, o jurídico e o sindicato.</span></div></div>
+        <div class="insight-row"><span class="n">5</span><div class="txt"><strong>CFG + CGE não destravam nada agora</strong><span>Viram credencial comercial para a Fase 4 — e te tornam investidor qualificado.</span></div></div>
+        <div class="insight-row"><span class="n">6</span><div class="txt"><strong>Nunca dê ação de graça</strong><span>Bonificação em dinheiro; o colaborador compra num ato separado e voluntário.</span></div></div>
+        <div class="insight-row"><span class="n">7</span><div class="txt"><strong>Desconto em folha exige convenção coletiva</strong><span>Na versão 1, use PIX, boleto ou débito automático.</span></div></div>
+        <div class="insight-row"><span class="n">8</span><div class="txt"><strong>Mate a “cotação” e o “mercado” deste sistema</strong><span>Um preço só, por fórmula, em janelas trimestrais, com aprovação por transferência.</span></div></div>
+        <div class="insight-row"><span class="n">9</span><div class="txt"><strong>Comece com 50–150 líderes</strong><span>Corrigir com 50 pessoas custa nada; com 3.000 custa reputação.</span></div></div>
+        <div class="insight-row"><span class="n">10</span><div class="txt"><strong>Só volte a falar em FIP acima de R$ 10 milhões</strong><span>E com público qualificado. Mesmo assim, como produto paralelo — nunca como estágio prometido à base.</span></div></div>
+      </div>
+
+      <div class="m-card">
+        <h3 style="margin-bottom:10px;">Fontes primárias</h3>
+        <p class="hint" style="margin-bottom:10px;">Tudo nesta página foi verificado contra a norma vigente em julho de 2026.</p>
+        <div style="display:flex; flex-direction:column; gap:7px;">
+          <a class="comp-site" href="https://conteudo.cvm.gov.br/export/sites/cvm/legislacao/resolucoes/anexos/100/resol175consolid_Anexo04.pdf" target="_blank" rel="noopener">Res. CVM 175 — Anexo IV (FIP) ↗</a>
+          <a class="comp-site" href="https://conteudo.cvm.gov.br/export/sites/cvm/legislacao/resolucoes/anexos/001/resol030consolid.pdf" target="_blank" rel="noopener">Res. CVM 30 — investidor qualificado ↗</a>
+          <a class="comp-site" href="https://conteudo.cvm.gov.br/export/sites/cvm/legislacao/resolucoes/anexos/001/resol021consolid.pdf" target="_blank" rel="noopener">Res. CVM 21 — administração de carteiras ↗</a>
+          <a class="comp-site" href="https://conteudo.cvm.gov.br/export/sites/cvm/legislacao/resolucoes/anexos/100/resol160consolid.pdf" target="_blank" rel="noopener">Res. CVM 160 — ofertas públicas ↗</a>
+          <a class="comp-site" href="https://www.planalto.gov.br/ccivil_03/leis/l6404consol.htm" target="_blank" rel="noopener">Lei 6.404/76 — Sociedades Anônimas ↗</a>
+          <a class="comp-site" href="https://www.planalto.gov.br/ccivil_03/leis/l10101.htm" target="_blank" rel="noopener">Lei 10.101/2000 — PLR ↗</a>
+        </div>
+      </div>
+
+      <div class="cta-card">
+        <h3>O próximo passo é uma reunião, não um contrato</h3>
+        <p>Etapa 1 custa R$ 0 e destrava ou mata o projeto inteiro: sentar com a família Aguiar e sair com uma ata assinada respondendo 6 perguntas.</p>
+        <p style="margin-top:10px; color:var(--gold-bright); font-weight:600;">Sem esse “sim” com número e data, todo o resto é desperdício.</p>
+      </div>
+
+      <p class="hint" style="text-align:center; margin:18px 6px 4px; line-height:1.6;">Esta página é pesquisa regulatória e desenho de projeto — não é parecer jurídico, tributário nem recomendação de investimento. Nada aqui substitui advogado societário, trabalhista e tributário.</p>
+
+    </section>
+
     <!-- ESTUDO DE CONCORRENTES -->
     <section class="view hidden" data-view="concorrentes">
 

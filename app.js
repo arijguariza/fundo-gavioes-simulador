@@ -1864,7 +1864,7 @@ function abrirModalAnuncio(preSelId) {
    FIP — ACCORDION
    ============================================================ */
 function wireAccordion() {
-  document.querySelectorAll('#fip-accordion .acc-head').forEach(btn => {
+  document.querySelectorAll('.accordion .acc-head').forEach(btn => {
     btn.addEventListener('click', () => {
       const item = btn.closest('.acc-item');
       const isOpen = item.classList.contains('open');
@@ -1927,10 +1927,11 @@ function openMaisSheet() {
     <button class="sheet-item" data-go="evolucao"><span class="ic">06</span>Evolução &amp; Projeção</button>
     <button class="sheet-item" data-go="saida"><span class="ic">07</span>Saída &amp; Recompra</button>
     <button class="sheet-item" data-go="regras"><span class="ic">08</span>Regras do Fundo</button>
-    <button class="sheet-item" data-go="config"><span class="ic">09</span>Configuração do Fundo</button>
-    <button class="sheet-item" data-go="fip"><span class="ic">10</span>O Que É um FIP?</button>
-    <button class="sheet-item" data-go="proposta"><span class="ic">11</span>Proposta Comercial</button>
-    <button class="sheet-item" data-go="concorrentes"><span class="ic">12</span>Estudo de Concorrentes</button>
+    <button class="sheet-item" data-go="implantacao"><span class="ic">09</span>Do Zero ao Lançamento</button>
+    <button class="sheet-item" data-go="config"><span class="ic">10</span>Configuração do Fundo</button>
+    <button class="sheet-item" data-go="fip"><span class="ic">11</span>O Que É um FIP?</button>
+    <button class="sheet-item" data-go="proposta"><span class="ic">12</span>Proposta Comercial</button>
+    <button class="sheet-item" data-go="concorrentes"><span class="ic">13</span>Estudo de Concorrentes</button>
   </div>`;
   openSheet(`<h3>Mais Opções</h3>`, itemsHtml, (root) => {
     root.querySelectorAll('[data-go]').forEach(b => {
