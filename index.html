@@ -146,7 +146,7 @@
         <h3>A Unidade</h3>
         <div class="field"><label>Nome da unidade</label><input type="text" id="cfg-nomeUnidade"></div>
         <div class="field"><label>Lucro mensal projetado (R$)</label><input type="number" id="cfg-lucroMensal" step="1000"></div>
-        <div class="field"><label>Múltiplo de mercado (x)</label><input type="number" id="cfg-multiplo" step="0.5"></div>
+        <div class="field"><label>Múltiplo de avaliação (x)</label><input type="number" id="cfg-multiplo" step="0.5"></div>
         <div class="field"><label>Crescimento anual da unidade (%)</label><input type="number" id="cfg-crescimento" step="0.5"></div>
       </div>
       <div class="m-card">
@@ -320,9 +320,9 @@
         <h3 style="margin-bottom:10px;">A oferta</h3>
         <div class="scenario-row"><span class="k">Fatia da unidade ofertada</span><span class="v">15%</span></div>
         <div class="scenario-row"><span class="k">Estrutura</span><span class="v">S.A. de capital fechado</span></div>
-        <div class="scenario-row"><span class="k">Preço da ação</span><span class="v">≈ R$ 45</span></div>
+        <div class="scenario-row"><span class="k">Preço da ação hoje</span><span class="v" id="prop-preco">—</span></div>
         <div class="scenario-row"><span class="k">Entrada mínima</span><span class="v">acessível</span></div>
-        <div class="scenario-row total"><span class="k">Retorno esperado</span><span class="v">~9% a.a. + valorização</span></div>
+        <div class="scenario-row total"><span class="k">Retorno esperado</span><span class="v" id="prop-yield">—</span></div>
         <p class="hint" style="margin-top:10px;">Você vira acionista de uma empresa que tem 15% da academia — não sócio direto dela. Isso simplifica tudo: entrada, saída e governança.</p>
       </div>
 
@@ -371,9 +371,9 @@
 
       <div class="m-card">
         <h3 style="margin-bottom:10px;">Na prática, com R$ 5.000</h3>
-        <div class="scenario-row"><span class="k">Você compra</span><span class="v">≈ 111 ações</span></div>
-        <div class="scenario-row"><span class="k">Recebe por mês</span><span class="v">≈ R$ 39</span></div>
-        <div class="scenario-row"><span class="k">No primeiro ano</span><span class="v">≈ R$ 470</span></div>
+        <div class="scenario-row"><span class="k">Você compra</span><span class="v" id="prop-ex-acoes">—</span></div>
+        <div class="scenario-row"><span class="k">Recebe por mês</span><span class="v" id="prop-ex-mes">—</span></div>
+        <div class="scenario-row"><span class="k">No primeiro ano</span><span class="v" id="prop-ex-ano">—</span></div>
         <div class="scenario-row total"><span class="k">E a posição continua sua</span><span class="v">valorizando</span></div>
         <p class="hint" style="margin-top:10px;">O dividendo não consome sua participação — ele é o lucro sendo repartido. Suas ações continuam lá, valendo mais conforme a academia cresce.</p>
       </div>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gavioes-invest-v12';
+const CACHE_NAME = 'gavioes-invest-v13';
 const PRECACHE_URLS = [
   './',
   './index.html',

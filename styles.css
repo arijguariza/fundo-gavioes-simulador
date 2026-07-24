@@ -180,10 +180,6 @@ dl{margin:0;}
   font-family:var(--mono); font-size:9.5px; letter-spacing:1.2px; text-transform:uppercase; color:var(--ink-faint);
   padding:14px 4px 6px;
 }
-.pick-tag{
-  display:inline-block; background:var(--gold-soft); color:var(--gold-bright); border:1px solid var(--gold-line);
-  font-family:var(--mono); font-size:9px; font-weight:700; letter-spacing:.3px; padding:1px 6px; border-radius:10px;
-}
 .sheet-close{
   margin-top:10px; width:100%; padding:12px; border-radius:var(--r-sm); border:1px solid var(--line);
   background:var(--panel-2); color:var(--ink-dim); font-size:13.5px; font-weight:600;
@@ -514,17 +510,7 @@ input[type="range"]::-moz-range-thumb{
 .calc-output-row.hl{border-top:1px dashed var(--line); margin-top:4px; padding-top:12px;}
 .calc-output-row.hl .v{color:var(--gold-bright); font-size:19px;}
 
-.engagement-bar-track{height:14px; border-radius:8px; background:var(--panel-3); overflow:hidden; margin:14px 0 8px; border:1px solid var(--line);}
-.engagement-bar-track i{display:block; height:100%; border-radius:8px; background:linear-gradient(90deg, var(--rust), var(--gold)); transition:width .35s ease;}
-.engagement-tier{text-align:center; font-family:var(--serif); font-weight:700; font-size:16px; color:var(--gold-bright); margin-top:4px;}
-.engagement-note{font-size:11.5px; color:var(--ink-faint); line-height:1.5; margin-top:10px; text-align:center;}
 
-.logo-row{display:flex; flex-wrap:wrap; gap:10px; margin-top:4px;}
-.logo-chip{
-  background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 18px;
-  display:flex; align-items:center; justify-content:center; height:46px;
-}
-.logo-chip img{height:100%; max-width:110px; object-fit:contain; display:block;}
 
 .diff-list{display:flex; flex-direction:column; gap:12px; margin-top:4px;}
 .diff-row{display:flex; gap:12px; align-items:flex-start;}

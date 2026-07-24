@@ -146,7 +146,9 @@ function seedInvestidores() {
       mes: mesEntrada, tipo: 'aporte', qtd: acoes, valor: valorPago,
       desc: origem === 'privada' ? 'Aporte na oferta privada' : 'Aporte via plataforma de crowdfunding'
     }];
-    for (let m = mesEntrada + 1; m <= MES_INICIAL; m++) {
+    // Dividendos históricos até o mês anterior ao atual — o mês corrente ainda
+    // não foi fechado (fecharMes é quem paga o dividendo de state.mesAtual).
+    for (let m = mesEntrada + 1; m < MES_INICIAL; m++) {
       const valor = acoes * divPorAcao;
       if (valor > 0) historico.push({ mes: m, tipo: 'dividendo', qtd: null, valor: Math.round(valor * 100) / 100, desc: 'Dividendo mensal' });
     }
@@ -481,7 +483,8 @@ function svgLineChart(points, opts = {}) {
   const refPoints = opts.refPoints || null; // série de referência (linha tracejada)
   const allYs = points.map(p => p.y).concat(refPoints ? refPoints.map(p => p.y) : []);
   const minY = Math.min(...allYs) * 0.96, maxY = Math.max(...allYs) * 1.04;
-  const xToPx = (i) => pad + (i / (points.length - 1)) * (width - pad * 2);
+  const denom = Math.max(1, points.length - 1); // evita divisão por zero com série de 1 ponto
+  const xToPx = (i) => pad + (i / denom) * (width - pad * 2);
   const yToPx = (y) => height - pad - ((y - minY) / (maxY - minY || 1)) * (height - pad * 1.4);
   const linePts = points.map((p, i) => `${xToPx(i)},${yToPx(p.y)}`).join(' ');
   const areaPts = `${pad},${height - pad} ${linePts} ${width - pad},${height - pad}`;
@@ -566,6 +569,23 @@ function renderAll() {
   else if (v === 'portal') renderPortal();
   else if (v === 'janela') renderJanela();
   else if (v === 'regras') renderRegras();
+  else if (v === 'proposta') renderProposta();
+}
+
+/* Preenche os números fixos da Proposta com o estado atual do motor,
+   para não contradizerem o ticker nem o simulador de retorno. */
+function renderProposta() {
+  const e = estadoNoMes(state.mesAtual);
+  const preco = e.valorAcao;
+  const divAcao = dividendoPorAcao(state.config.lucroMensal, state.config);
+  const yieldAnual = preco > 0 ? (divAcao * 12 / preco) * 100 : 0;
+  const acoes5k = preco > 0 ? Math.floor(5000 / preco) : 0;
+  const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  set('prop-preco', `≈ ${fmtBRL(preco)}`);
+  set('prop-yield', `~${fmtPct(yieldAnual, 0)} a.a. + valorização`);
+  set('prop-ex-acoes', `≈ ${fmtNum(acoes5k)} ações`);
+  set('prop-ex-mes', `≈ ${fmtBRL0(acoes5k * divAcao)}`);
+  set('prop-ex-ano', `≈ ${fmtBRL0(acoes5k * divAcao * 12)}`);
 }
 
 function renderNav() {
@@ -885,8 +905,9 @@ function renderConfig() {
 function lerConfigDosInputs() {
   const num = (id, fallback) => {
     const el = document.getElementById(id);
-    const v = el ? Number(el.value) : NaN;
-    return isFinite(v) && v !== 0 ? v : (el && Number(el.value) === 0 ? 0 : fallback);
+    if (!el || String(el.value).trim() === '') return fallback; // campo vazio → mantém o valor atual
+    const v = Number(el.value);
+    return isFinite(v) ? v : fallback;
   };
   const nomeEl = document.getElementById('cfg-nomeUnidade');
   return {
@@ -1030,7 +1051,11 @@ function abrirModalNovoInvestidor() {
       if (!nome) { toast('Informe o nome do investidor.'); return; }
       const origem = origemEl.value;
       const id = state.nextId++;
-      const genero = generoInvestidor(id);
+      // Gênero a partir do primeiro nome digitado (para a foto casar com o nome);
+      // se o nome não estiver na base, cai no padrão determinístico por id.
+      const primeiroNome = nome.split(' ')[0].toLowerCase();
+      const idxNome = NOMES_BASE.findIndex(n => n.toLowerCase() === primeiroNome);
+      const genero = idxNome >= 0 ? GENEROS_BASE[idxNome] : generoInvestidor(id);
       state.investidores.push({
         id, nome, genero, origem, mesEntrada: state.mesAtual,
         fotoUrl: `https://randomuser.me/api/portraits/${genero === 'F' ? 'women' : 'men'}/${id % 15}.jpg`,
@@ -1280,9 +1305,12 @@ function registrarInteresseCompra(investidorId, acoes) {
   if (!inv) return false;
   acoes = Math.floor(acoes);
   if (acoes <= 0) { toast('Informe uma quantidade válida.'); return false; }
+  // Desconta interesses de compra já registrados do mesmo investidor nesta janela,
+  // para o teto de concentração/anual valer sobre o total pedido, não por pedido.
+  const jaPedido = pedidosCompraAtivos().filter(p => p.investidorId === inv.id).reduce((s, p) => s + p.acoes, 0);
   const limite = Math.min(
-    maxAcoesPorInvestidor() - inv.acoes,
-    tetoRestanteAno(inv) === Infinity ? Infinity : Math.floor(tetoRestanteAno(inv) / precoJanela())
+    maxAcoesPorInvestidor() - inv.acoes - jaPedido,
+    tetoRestanteAno(inv) === Infinity ? Infinity : Math.floor(tetoRestanteAno(inv) / precoJanela()) - jaPedido
   );
   if (limite <= 0) {
     toast(tetoRestanteAno(inv) <= 0
@@ -1428,7 +1456,9 @@ function executarJanela() {
   persist();
   toast(r.executado > 0
     ? `Janela liquidada: ${fmtNum(r.executado)} ações a ${fmtBRL(preco)}${r.naoAtendido > 0 ? ` · rateio de ${Math.round(r.rateioPct)}%` : ''}.`
-    : 'Janela apurada sem negócios — nenhum pedido na fila.');
+    : (r.oferta > 0
+        ? 'Janela apurada, mas nenhum negócio fechou: sem compradores nem caixa de recompra. Os pedidos seguem na fila.'
+        : 'Janela apurada sem negócios — nenhum pedido na fila.'));
   renderAll();
   return r;
 }
@@ -1477,7 +1507,7 @@ function renderRegras() {
 
     <div class="m-card">
       <h3 style="margin-bottom:4px;">Um preço só, apurado por fórmula</h3>
-      <p class="hint" style="margin-bottom:10px;">Não existe cotação, livro de ofertas nem negociação contínua neste programa. Todo mundo entra e sai pelo mesmo valor: o <strong>valor patrimonial da ação</strong>.</p>
+      <p class="hint" style="margin-bottom:10px;">Não há formação de preço, livro de ofertas nem negociação contínua neste programa. Todo mundo entra e sai pelo mesmo valor: o <strong>valor patrimonial da ação</strong>.</p>
       <div class="scenario-row"><span class="k">Patrimônio da companhia</span><span class="v">${fmtBRL0(e.patrimonioVeiculo)}</span></div>
       <div class="scenario-row"><span class="k">÷ capital autorizado</span><span class="v">${fmtNum(c.totalAcoes)} ações</span></div>
       <div class="scenario-row total"><span class="k">= valor da ação hoje</span><span class="v">${fmtBRL(e.valorAcao)}</span></div>
@@ -1495,7 +1525,7 @@ function renderRegras() {
 
     <div class="m-card">
       <h3 style="margin-bottom:14px;">Como se sai — a Janela de Liquidez</h3>
-      <div class="wf">
+      <div class="waterfall">
         <div class="wf-step"><span class="wf-n">1</span><div><strong>Entrar na fila</strong><p>A qualquer momento o investidor pede para vender, no todo ou em parte. O pedido fica na fila até a próxima janela.</p></div></div>
         <div class="wf-step"><span class="wf-n">2</span><div><strong>Janela a cada ${c.janelaMeses} meses</strong><p>Na data, apura-se o preço único e cruzam-se os pedidos. Próxima: ${janelaAberta() ? 'aberta agora' : fmtMes(proximaJanelaMes())}.</p></div></div>
         <div class="wf-step"><span class="wf-n">3</span><div><strong>Investidores compram primeiro</strong><p>Quem registrou interesse é atendido por ordem de chegada, respeitando o teto de concentração e o teto anual do crowdfunding.</p></div></div>
@@ -1542,7 +1572,7 @@ function renderJanela() {
     </div>
     <div class="m-card" style="margin:12px 0 4px;">
       <h3 style="margin-bottom:6px;">Preço único, apurado por fórmula</h3>
-      <p class="hint">Não existe cotação nem negociação contínua aqui. Todos negociam pelo <strong>mesmo preço</strong> — o valor patrimonial da ação no dia da apuração. Se houver mais gente vendendo do que comprando, o atendimento é por <strong>rateio proporcional</strong>, e o saldo continua na fila para a próxima janela.</p>
+      <p class="hint">Não há formação de preço nem negociação contínua aqui. Todos negociam pelo <strong>mesmo preço</strong> — o valor patrimonial da ação no dia da apuração. Se houver mais gente vendendo do que comprando, o atendimento é por <strong>rateio proporcional</strong>, e o saldo continua na fila para a próxima janela.</p>
     </div>
     <div style="display:flex; gap:8px; margin-top:10px;">
       <button class="btn ghost full" id="btn-nova-venda">Entrar na fila de venda</button>
@@ -1864,8 +1894,16 @@ function wireGlobalEvents() {
 
   on('cfg-aplicar', 'click', () => {
     const anterior = state.config.totalAcoes;
-    state.config = lerConfigDosInputs();
-    // Se o capital autorizado mudou, o saldo a emitir absorve a diferença
+    const novaConfig = lerConfigDosInputs();
+    // O capital autorizado nunca pode ficar abaixo das ações já emitidas,
+    // senão o invariante (emitidas + a emitir === totalAcoes) quebra.
+    const minimoAutorizado = acoesEmitidas();
+    if (novaConfig.totalAcoes < minimoAutorizado) {
+      renderConfig(); // restaura o valor anterior no input
+      toast(`Capital autorizado não pode ser menor que as ${fmtNum(minimoAutorizado)} ações já emitidas.`);
+      return;
+    }
+    state.config = novaConfig;
     const delta = state.config.totalAcoes - anterior;
     state.acoesDisponiveisEmissao = Math.max(0, state.acoesDisponiveisEmissao + delta);
     persist();
@@ -1874,7 +1912,11 @@ function wireGlobalEvents() {
     toast('Parâmetros aplicados e recalculados.');
   });
   on('cfg-padrao', 'click', () => {
-    state.config = { ...DEFAULT_CONFIG };
+    // Restaura os padrões, mas o capital autorizado não pode cair abaixo do já
+    // emitido — e o saldo a emitir é recomposto para manter o invariante.
+    const emitidas = acoesEmitidas();
+    state.config = { ...DEFAULT_CONFIG, totalAcoes: Math.max(DEFAULT_CONFIG.totalAcoes, emitidas) };
+    state.acoesDisponiveisEmissao = state.config.totalAcoes - emitidas;
     persist();
     rebuildEstados();
     renderAll();
