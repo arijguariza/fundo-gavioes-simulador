@@ -1,30 +1,35 @@
 /* ============================================================
-   FUNDO GAVIÕES — SIMULADOR MOBILE
-   Motor de cálculo + estado + renderização. Sem backend, sem banco.
-   Tudo em memória / localStorage.
+   GAVIÕES INVEST — SIMULADOR MOBILE
+   Veículo de investimento (S.A. de capital fechado) que detém uma
+   participação minoritária em UMA unidade da rede, aberto a pequenos
+   investidores externos. Sem backend, sem banco: memória / localStorage.
    ============================================================ */
 
-const STORAGE_KEY = 'gavioes_fundo_sim_v17';
+const STORAGE_KEY = 'gavioes_invest_sim_v18';
+const CHAVES_ANTIGAS = ['gavioes_fundo_sim_v17', 'gavioes_fundo_sim_v16', 'gavioes_fundo_sim_v15'];
 const HORIZON_MESES = 480; // 40 anos de estados pré-computados
 
 const DEFAULT_CONFIG = {
-  lucroMensal: 31200,
-  multiplo: 10,
-  custoAbertura: 5000000,
-  crescimento: 10,       // % a.a. de valorização da academia
-  participacaoPct: 2.5,  // % do fundo na academia
-  totalCotas: 2400,
-  taxaAdmPct: 1.5,        // % a.a. sobre patrimônio
-  auditoriaAnual: 6000,   // R$/ano fixo
-  cotasLiderMes: 20,
-  limiteCompraMes: 20,
-  irrfPct: 15,
-  reservaPct: 10,             // % do patrimônio reservado em caixa p/ recompras de saída
-  limiteConcentracaoPct: 10,  // máximo de % do total de cotas por cotista
-  prazoPagamentoDias: 60      // prazo máximo para pagar a recompra de quem sai
+  nomeUnidade: 'Unidade Tatuapé',
+  lucroMensal: 50000,          // lucro mensal da unidade
+  multiplo: 8,                 // valuation = lucro × 12 × múltiplo = R$ 4,8M
+  crescimento: 10,             // % a.a. de valorização da unidade
+  participacaoPct: 15,         // % da unidade detido pela S.A. → veículo ≈ R$ 720k
+  totalAcoes: 16000,           // capital autorizado → ação inicial ≈ R$ 45
+  contabilidadeMensal: 1200,   // R$/mês
+  juridicoAnual: 8000,         // R$/ano
+  irGanhoPct: 15,              // IR sobre ganho de capital na venda
+  reservaPct: 10,              // % do patrimônio em caixa p/ recompra pela companhia
+  limiteConcentracaoPct: 10,   // máximo de % do total de ações por investidor
+  tetoAporteAnualCrowd: 20000, // teto anual por investidor de varejo (Res. CVM 88)
+  janelaMeses: 3,              // periodicidade da Janela de Liquidez
+  prazoLiquidacaoDias: 60      // prazo máximo para pagar quem vendeu na janela
 };
 
-const UNIDADES = ['Marketing', 'Operação', 'Implantação', 'Administrativo', 'Comercial', 'Financeiro'];
+const ORIGENS = [
+  { key: 'privada', label: 'Oferta Privada', curto: 'Privada' },
+  { key: 'crowdfunding', label: 'Crowdfunding', curto: 'Crowd' }
+];
 
 const PERIODOS = [
   { key: '3', label: '3 meses', n: 3 },
@@ -83,19 +88,19 @@ const SOBRENOMES_BASE = ['Almeida', 'Barros', 'Costa', 'Duarte', 'Esteves', 'Fer
   'Osório', 'Pinheiro', 'Rezende', 'Salgado', 'Tavares', 'Uribe', 'Valente', 'Wermelinger', 'Xavier', 'Yoshida',
   'Brandão', 'Lima'];
 
-/* distribui `totalCotas` entre `qtdPessoas` de forma aleatória (pesos), somando exatamente o total */
-function distribuirAleatorio(qtdPessoas, totalCotas) {
+/* distribui `total` entre `qtdPessoas` de forma aleatória (pesos), somando exatamente o total */
+function distribuirAleatorio(qtdPessoas, total) {
   const pesos = Array.from({ length: qtdPessoas }, () => Math.random() + 0.15);
   const somaPesos = pesos.reduce((s, p) => s + p, 0);
-  const brutos = pesos.map(p => (p / somaPesos) * totalCotas);
+  const brutos = pesos.map(p => (p / somaPesos) * total);
   const arred = brutos.map(v => Math.floor(v));
-  let restante = totalCotas - arred.reduce((s, v) => s + v, 0);
+  let restante = total - arred.reduce((s, v) => s + v, 0);
   const fracoes = brutos.map((v, i) => ({ i, frac: v - Math.floor(v) })).sort((a, b) => b.frac - a.frac);
   for (let k = 0; k < restante; k++) arred[fracoes[k % qtdPessoas].i] += 1;
   return arred;
 }
 
-function nomeColaborador(i) {
+function nomeInvestidor(i) {
   const baseIdx = i % 50;
   const primeiro = NOMES_BASE[baseIdx];
   const sobrenome1 = SOBRENOMES_BASE[(baseIdx + 17) % 50];
@@ -104,176 +109,155 @@ function nomeColaborador(i) {
   return `${primeiro} ${sobrenome1} ${sobrenome2}`;
 }
 
-function generoColaborador(i) {
+function generoInvestidor(i) {
   return GENEROS_BASE[i % 50];
 }
 
-function seedCotistas() {
-  const estadosSeed = buildEstados(DEFAULT_CONFIG, 30);
-  const mk = (id, nome, unidade, papel, liderId, mesEntrada, cotas, genero) => {
-    const bonRatio = 0.5 + Math.random() * 0.3;
-    const bon = Math.round(cotas * bonRatio);
-    const comp = cotas - bon;
-    const valorCotaNaEpoca = estadosSeed[Math.min(mesEntrada, estadosSeed.length - 1)].valorCota;
-    const precoMedio = valorCotaNaEpoca * (0.94 + Math.random() * 0.12);
-    const valorPago = Math.round(comp * precoMedio);
+const anoDoMes = (mes) => Math.floor(mes / 12);
 
-    const dividendoEntries = [];
-    for (let m = mesEntrada; m < 30; m++) {
-      const e = estadosSeed[m];
-      const fundoRecebe = DEFAULT_CONFIG.lucroMensal * (DEFAULT_CONFIG.participacaoPct / 100);
-      const custoMensal = e.patrimonioFundo * (DEFAULT_CONFIG.taxaAdmPct / 100 / 12) + DEFAULT_CONFIG.auditoriaAnual / 12;
-      const dividendoPorCota = (fundoRecebe - custoMensal) / DEFAULT_CONFIG.totalCotas;
-      const dividendoCotista = cotas * dividendoPorCota;
-      if (dividendoCotista > 0) {
-        dividendoEntries.push({ mes: m, tipo: 'dividendo', qtd: null, valor: Math.round(dividendoCotista * 100) / 100, desc: 'Dividendo mensal' });
-      }
+/* Custo mensal fixo do veículo (contabilidade + rateio do jurídico anual) */
+function custoMensalVeiculo(config) {
+  return config.contabilidadeMensal + config.juridicoAnual / 12;
+}
+
+/* Dividendo por ação de um mês — fórmula única usada pelo seed, pelo ciclo e pelas projeções */
+function dividendoPorAcao(lucroMes, config) {
+  return (lucroMes * (config.participacaoPct / 100) - custoMensalVeiculo(config)) / config.totalAcoes;
+}
+
+const MES_INICIAL = 30;
+
+/* Investidores em duas ondas de captação:
+   - oferta privada (círculo restrito, tickets maiores, meses iniciais)
+   - crowdfunding (varejo, teto anual por investidor, meses posteriores) */
+function seedInvestidores() {
+  const cfg = DEFAULT_CONFIG;
+  const estadosSeed = buildEstados(cfg, MES_INICIAL);
+  const divPorAcao = dividendoPorAcao(cfg.lucroMensal, cfg);
+  const investidores = [];
+
+  const mk = (id, i, origem, mesEntrada, aporte) => {
+    const genero = generoInvestidor(i);
+    const valorAcaoNaEpoca = estadosSeed[Math.min(mesEntrada, estadosSeed.length - 1)].valorAcao;
+    const acoes = Math.max(1, Math.floor(aporte / valorAcaoNaEpoca));
+    const valorPago = Math.round(acoes * valorAcaoNaEpoca * 100) / 100;
+
+    const historico = [{
+      mes: mesEntrada, tipo: 'aporte', qtd: acoes, valor: valorPago,
+      desc: origem === 'privada' ? 'Aporte na oferta privada' : 'Aporte via plataforma de crowdfunding'
+    }];
+    for (let m = mesEntrada + 1; m <= MES_INICIAL; m++) {
+      const valor = acoes * divPorAcao;
+      if (valor > 0) historico.push({ mes: m, tipo: 'dividendo', qtd: null, valor: Math.round(valor * 100) / 100, desc: 'Dividendo mensal' });
     }
 
-    // Perfil de pequeno investidor: parte dos cotistas tem plano mensal via folha
-    // e/ou reinvestimento automático de dividendos (padrão estável por id).
-    const planoMensal = (id % 3 === 0) ? 50 + (id % 4) * 50 : (papel === 'lider' ? 200 : 0);
-    const reinvestirDividendos = id % 4 === 0 || papel === 'lider';
+    const planoMensal = (id % 3 === 0) ? 100 + (id % 5) * 100 : 0;
+    const reinvestir = id % 4 === 0;
     return {
-      id, nome, unidade, papel, liderId,
-      vinculo: 'CLT',
-      mesEntrada,
-      cotas, cotasBonificadas: bon, cotasCompradas: comp, valorPagoCompras: valorPago,
-      planoMensal, reinvestirDividendos,
-      creditoReinvestimento: reinvestirDividendos ? Math.round(Math.random() * 3000) / 100 : 0,
+      id, nome: nomeInvestidor(i), genero, origem, mesEntrada,
       fotoUrl: `https://randomuser.me/api/portraits/${genero === 'F' ? 'women' : 'men'}/${id % 15}.jpg`,
-      compradoNoMes: {},
-      historico: [
-        { mes: mesEntrada, tipo: 'bonificacao', qtd: bon, valor: 0, desc: 'Bonificação inicial por performance' },
-        ...(comp > 0 ? [{ mes: mesEntrada, tipo: 'compra', qtd: comp, valor: valorPago, desc: 'Compra de cotas' }] : []),
-        ...dividendoEntries
-      ]
+      acoes, valorPago,
+      aportadoNoAno: { [anoDoMes(mesEntrada)]: valorPago },
+      planoMensal, reinvestir,
+      creditoReinvestimento: reinvestir ? Math.round(Math.random() * 2000) / 100 : 0,
+      historico
     };
   };
 
-  const lideresDef = [
-    { id: 1, nome: 'Marcos Tavares', unidade: 'Marketing', mesEntrada: 0, cotas: 90, genero: 'M' },
-    { id: 2, nome: 'Rodrigo Lemos', unidade: 'Operação', mesEntrada: 4, cotas: 80, genero: 'M' },
-    { id: 3, nome: 'Patrícia Reis', unidade: 'Implantação', mesEntrada: 8, cotas: 70, genero: 'F' },
-    { id: 4, nome: 'Camila Duarte', unidade: 'Administrativo', mesEntrada: 12, cotas: 60, genero: 'F' },
-    { id: 5, nome: 'Bruno Ferreira', unidade: 'Comercial', mesEntrada: 16, cotas: 55, genero: 'M' },
-    { id: 6, nome: 'Fernanda Costa', unidade: 'Financeiro', mesEntrada: 20, cotas: 50, genero: 'F' }
-  ];
-  const lideres = lideresDef.map(l => mk(l.id, l.nome, l.unidade, 'lider', null, l.mesEntrada, l.cotas, l.genero));
-
-  const QTD_COLABORADORES = 100;
-  const TOTAL_COTAS_DESEJADO = 1279; // líderes (405) + colaboradores (874)
-  const cotasLideresSoma = lideresDef.reduce((s, l) => s + l.cotas, 0);
-  const cotasColaboradores = Math.max(0, TOTAL_COTAS_DESEJADO - cotasLideresSoma);
-  const distribuicao = distribuirAleatorio(QTD_COLABORADORES, cotasColaboradores);
-
-  const colaboradores = [];
-  for (let i = 0; i < QTD_COLABORADORES; i++) {
-    const nome = nomeColaborador(i);
-    const genero = generoColaborador(i);
-    const lider = lideresDef[i % lideresDef.length];
-    const mesEntrada = Math.floor(Math.random() * 30);
-    colaboradores.push(mk(7 + i, nome, lider.unidade, 'colaborador', lider.id, mesEntrada, distribuicao[i], genero));
+  // Onda 1 — oferta privada: 15 investidores, R$ 3.000 a R$ 18.000, meses 0 a 6
+  for (let i = 0; i < 15; i++) {
+    const aporte = 3000 + Math.floor(Math.random() * 15000);
+    investidores.push(mk(i + 1, i, 'privada', Math.floor(Math.random() * 7), aporte));
   }
-
-  return [...lideres, ...colaboradores];
+  // Onda 2 — crowdfunding: 50 investidores, R$ 500 a R$ 14.000 (teto legal 20k/ano), meses 12 a 30
+  for (let i = 0; i < 50; i++) {
+    const aporte = 500 + Math.floor(Math.random() * 13500);
+    const mesEntrada = 12 + Math.floor(Math.random() * (MES_INICIAL - 12 + 1));
+    investidores.push(mk(i + 16, i + 15, 'crowdfunding', mesEntrada, aporte));
+  }
+  return investidores;
 }
 
-function seedMercado(cotistas, valorCotaRef) {
-  // Escolhe alguns cotistas com cotas suficientes para anunciar parte à venda,
-  // com preços variando em ágio/deságio em torno do valor patrimonial da cota.
-  const candidatos = cotistas.filter(c => c.cotas >= 6).sort((a, b) => b.cotas - a.cotas);
-  const picks = [candidatos[1], candidatos[4], candidatos[7], candidatos[11], candidatos[2], candidatos[15]].filter(Boolean);
-  const fatores = [1.05, 0.97, 1.10, 0.99, 1.03, 0.94]; // ágio (>1) ou deságio (<1)
-  const fracoes = [0.35, 0.5, 0.25, 0.6, 0.3, 0.45];
-  return picks.map((c, i) => ({
-    id: 1000 + i,
-    vendedorId: c.id,
-    cotas: Math.max(2, Math.round(c.cotas * fracoes[i])),
-    precoPorCota: Math.round(valorCotaRef * fatores[i] * 100) / 100,
-    mesAnuncio: 30 - (i % 6),
-    status: 'ativo'
-  }));
-}
+/* Janela de Liquidez: histórico de janelas passadas + filas em aberto */
+function seedJanela(investidores, estadosSeed) {
+  const historico = [21, 24, 27].map((mes, k) => {
+    const preco = Math.round(estadosSeed[mes].valorAcao * 100) / 100;
+    const negociadas = [64, 108, 85][k];
+    const paraTesouraria = [12, 30, 18][k];
+    return {
+      mes, preco, acoesNegociadas: negociadas,
+      paraInvestidores: negociadas - paraTesouraria, paraTesouraria,
+      rateioPct: [100, 82, 100][k],
+      irRecolhido: Math.round(negociadas * preco * 0.02 * 100) / 100,
+      desembolsoTesouraria: Math.round(paraTesouraria * preco * 100) / 100
+    };
+  });
 
-function seedCotacao(estados, mesAtual) {
-  // Histórico de cotação (preço de mercado) oscilando em ágio/deságio em torno do NAV
-  const hist = [];
-  const start = Math.max(0, mesAtual - 11);
-  for (let m = start; m <= mesAtual; m++) {
-    const nav = estados[Math.min(m, estados.length - 1)].valorCota;
-    const osc = Math.sin(m * 0.9) * 0.045 + Math.cos(m * 1.7) * 0.02; // ±~6%
-    hist.push({ mes: m, nav, preco: Math.round(nav * (1 + osc) * 100) / 100 });
-  }
-  return hist;
+  // Pedidos em aberto para a próxima janela (usa quem tem mais ações)
+  const ordenados = [...investidores].sort((a, b) => b.acoes - a.acoes);
+  const vendedores = [ordenados[2], ordenados[6], ordenados[11]].filter(Boolean);
+  const compradores = [ordenados[4], ordenados[9]].filter(Boolean);
+
+  return {
+    ultimaExecutadaMes: 27,
+    filaVenda: vendedores.map((v, i) => ({
+      id: 500 + i, investidorId: v.id,
+      acoes: Math.max(2, Math.round(v.acoes * [0.4, 0.25, 1][i])),
+      mesPedido: MES_INICIAL - [2, 1, 0][i], status: 'na-fila'
+    })),
+    filaCompra: compradores.map((c, i) => ({
+      id: 600 + i, investidorId: c.id,
+      acoes: [40, 25][i],
+      mesPedido: MES_INICIAL - [1, 0][i], status: 'na-fila'
+    })),
+    historico
+  };
 }
 
 function freshState() {
-  const cotistas = seedCotistas();
-  const estadosRef = buildEstados(DEFAULT_CONFIG, 30);
-  const valorCotaRef = estadosRef[30].valorCota;
-  const distribuido = cotistas.reduce((s, c) => s + c.cotas, 0);
-  const naoDistribuido = DEFAULT_CONFIG.totalCotas - distribuido;
-  const reservaEmpresa = Math.round(naoDistribuido * 0.62); // empresa detém a maior parte p/ bonificar
-  const tesourariaFundo = naoDistribuido - reservaEmpresa;   // fundo guarda o resto p/ recompra
-  const cotacaoHist = seedCotacao(estadosRef, 30);
+  const investidores = seedInvestidores();
+  const estadosRef = buildEstados(DEFAULT_CONFIG, MES_INICIAL);
+  const comInvestidores = investidores.reduce((s, inv) => s + inv.acoes, 0);
+  const acoesEmTesouraria = 120; // recompradas em janelas anteriores
   return {
     config: { ...DEFAULT_CONFIG },
-    cotistas,
-    mercado: seedMercado(cotistas, valorCotaRef),
-    reservaEmpresa,
-    tesourariaFundo,
-    pagamentosPendentes: [],
-    precoMercado: cotacaoHist[cotacaoHist.length - 1].preco,
-    cotacaoHist,
-    mesAtual: 30,
-    nextId: 107,
-    nextListingId: 1010,
+    investidores,
+    janela: seedJanela(investidores, estadosRef),
+    acoesEmTesouraria,
+    acoesDisponiveisEmissao: DEFAULT_CONFIG.totalAcoes - comInvestidores - acoesEmTesouraria,
+    mesAtual: MES_INICIAL,
+    nextId: investidores.length + 1,
+    nextPedidoId: 700,
     activeView: 'portal',
-    ciclo: { step: 1, alocacoes: {}, lucroMes: DEFAULT_CONFIG.lucroMensal, aprovado: false },
-    portalSelId: 7,
-    saidaSelId: 20,
+    ciclo: { step: 1, lucroMes: DEFAULT_CONFIG.lucroMensal },
+    portalSelId: investidores[0] ? investidores[0].id : 1,
     portalPeriodo: 'tudo',
     overviewPeriodo: 'tudo',
     simDiv: { lucro: DEFAULT_CONFIG.lucroMensal, meses: 12 }
   };
 }
 
+const VIEWS_VALIDAS = ['portal', 'overview', 'ciclo', 'investidores', 'evolucao', 'janela',
+  'regras', 'config', 'comofunciona', 'proposta', 'implantacao', 'concorrentes'];
+
 function persist() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* ignora */ }
 }
 
 function loadState() {
+  // O modelo mudou de programa para funcionários → veículo de investimento.
+  // Estados antigos não têm equivalência: descartamos em vez de migrar.
+  try { CHAVES_ANTIGAS.forEach(k => localStorage.removeItem(k)); } catch (e) { /* ignora */ }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && parsed.config && Array.isArray(parsed.cotistas)) {
+      if (parsed && parsed.config && Array.isArray(parsed.investidores) && parsed.janela) {
+        parsed.config = { ...DEFAULT_CONFIG, ...parsed.config };
         if (!parsed.portalPeriodo) parsed.portalPeriodo = 'tudo';
         if (!parsed.overviewPeriodo) parsed.overviewPeriodo = 'tudo';
         if (!parsed.simDiv) parsed.simDiv = { lucro: parsed.config.lucroMensal, meses: 12 };
-        parsed.config = { ...DEFAULT_CONFIG, ...parsed.config };
-        parsed.cotistas.forEach(c => {
-          if (c.planoMensal == null) c.planoMensal = 0;
-          if (c.reinvestirDividendos == null) c.reinvestirDividendos = false;
-          if (c.creditoReinvestimento == null) c.creditoReinvestimento = 0;
-        });
-        if (!Array.isArray(parsed.mercado)) parsed.mercado = [];
-        if (parsed.nextListingId == null) parsed.nextListingId = 1010;
-        // Pools de posse das cotas (empresa vs fundo)
-        if (parsed.reservaEmpresa == null || parsed.tesourariaFundo == null) {
-          const distribuido = parsed.cotistas.reduce((s, c) => s + c.cotas, 0);
-          const naoDistribuido = Math.max(0, parsed.config.totalCotas - distribuido);
-          parsed.reservaEmpresa = Math.round(naoDistribuido * 0.62);
-          parsed.tesourariaFundo = naoDistribuido - parsed.reservaEmpresa;
-        }
-        if (!Array.isArray(parsed.pagamentosPendentes)) parsed.pagamentosPendentes = [];
-        // Cotação de mercado (preço x NAV)
-        if (!Array.isArray(parsed.cotacaoHist) || parsed.precoMercado == null) {
-          const est = buildEstados(parsed.config, parsed.mesAtual + 1);
-          parsed.cotacaoHist = seedCotacao(est, parsed.mesAtual);
-          parsed.precoMercado = parsed.cotacaoHist[parsed.cotacaoHist.length - 1].preco;
-        }
+        if (!VIEWS_VALIDAS.includes(parsed.activeView)) parsed.activeView = 'portal';
         return parsed;
       }
     }
@@ -305,21 +289,20 @@ let estados = [];
 function buildEstados(config, horizonte = HORIZON_MESES) {
   const monthlyGrowth = Math.pow(1 + config.crescimento / 100, 1 / 12) - 1;
   const valuationBase = config.lucroMensal * 12 * config.multiplo;
+  const custoMes = custoMensalVeiculo(config); // custo fixo: contabilidade + jurídico
   let custoAcumulado = 0;
-  let patrimonioAnterior = null;
   const arr = [];
   for (let m = 0; m <= horizonte; m++) {
     const valuation = valuationBase * Math.pow(1 + monthlyGrowth, m);
-    const participacaoFundo = valuation * (config.participacaoPct / 100);
-    let custoMensal = 0;
-    if (m > 0) {
-      custoMensal = patrimonioAnterior * (config.taxaAdmPct / 100 / 12) + config.auditoriaAnual / 12;
-      custoAcumulado += custoMensal;
-    }
-    const patrimonioFundo = participacaoFundo - custoAcumulado;
-    const valorCota = patrimonioFundo / config.totalCotas;
-    arr.push({ mes: m, valuation, participacaoFundo, custoMensal, custoAcumulado, patrimonioFundo, valorCota });
-    patrimonioAnterior = patrimonioFundo;
+    const participacao = valuation * (config.participacaoPct / 100);
+    if (m > 0) custoAcumulado += custoMes;
+    const patrimonioVeiculo = participacao - custoAcumulado;
+    const valorAcao = patrimonioVeiculo / config.totalAcoes;
+    arr.push({
+      mes: m, valuation, participacao,
+      custoMensal: m > 0 ? custoMes : 0, custoAcumulado,
+      patrimonioVeiculo, valorAcao
+    });
   }
   return arr;
 }
@@ -327,115 +310,111 @@ function buildEstados(config, horizonte = HORIZON_MESES) {
 function rebuildEstados() { estados = buildEstados(state.config); }
 function estadoNoMes(mes) { const m = Math.max(0, Math.min(mes, estados.length - 1)); return estados[m]; }
 
-function getCotista(id) { return state.cotistas.find(c => c.id === Number(id)); }
-function colaboradoresDe(liderId) { return state.cotistas.filter(c => c.liderId === liderId); }
-function totalDistribuido() { return state.cotistas.reduce((s, c) => s + c.cotas, 0); }
+function getInvestidor(id) { return state.investidores.find(c => c.id === Number(id)); }
+function investidoresAtivos() { return state.investidores.filter(i => i.acoes > 0); }
+function acoesComInvestidores() { return state.investidores.reduce((s, i) => s + i.acoes, 0); }
 
-/* Cotas não-distribuídas = as que estão em algum pool (empresa + fundo).
-   Invariante do sistema: distribuído + reservaEmpresa + tesourariaFundo === totalCotas. */
-function cotasNaoDistribuidas() { return (state.reservaEmpresa || 0) + (state.tesourariaFundo || 0); }
-function cotasEmTesouraria() { return cotasNaoDistribuidas(); } // compat: "tesouraria" no sentido amplo
-function maxCotasPorCotista() { return Math.floor(state.config.totalCotas * (state.config.limiteConcentracaoPct / 100)); }
-
-/* Quantas cotas um cotista ainda pode adquirir, respeitando concentração e cotas disponíveis nos pools */
-function margemCompra(cotista) {
-  return Math.max(0, Math.min(maxCotasPorCotista() - cotista.cotas, cotasNaoDistribuidas()));
+/* Invariante do sistema:
+   acoesComInvestidores + acoesEmTesouraria + acoesDisponiveisEmissao === totalAcoes */
+function acoesEmitidas() { return acoesComInvestidores() + state.acoesEmTesouraria; }
+function acoesDisponiveis() { return state.acoesEmTesouraria + state.acoesDisponiveisEmissao; }
+function maxAcoesPorInvestidor() {
+  return Math.floor(state.config.totalAcoes * (state.config.limiteConcentracaoPct / 100));
 }
 
-/* Emite cotas dos pools para um cotista (compra primária): tira da Tesouraria do
-   Fundo primeiro, depois da Reserva da Empresa. Retorna quantas foram emitidas. */
-function emitirCotas(qtd) {
-  qtd = Math.max(0, Math.min(qtd, cotasNaoDistribuidas()));
-  const daTes = Math.min(state.tesourariaFundo, qtd);
-  state.tesourariaFundo -= daTes;
-  const daEmp = qtd - daTes;
-  state.reservaEmpresa -= daEmp;
+/* Quanto ainda cabe no teto anual do investidor de varejo (Res. CVM 88).
+   Investidor da oferta privada não tem teto. */
+function tetoRestanteAno(inv, mes = state.mesAtual) {
+  if (inv.origem !== 'crowdfunding') return Infinity;
+  const ja = (inv.aportadoNoAno && inv.aportadoNoAno[anoDoMes(mes)]) || 0;
+  return Math.max(0, state.config.tetoAporteAnualCrowd - ja);
+}
+
+/* Quantas ações o investidor ainda pode adquirir: concentração × disponibilidade × teto anual */
+function margemAporte(inv, precoUnit = estadoNoMes(state.mesAtual).valorAcao) {
+  const porConcentracao = maxAcoesPorInvestidor() - inv.acoes;
+  const porTeto = tetoRestanteAno(inv) === Infinity ? Infinity : Math.floor(tetoRestanteAno(inv) / precoUnit);
+  return Math.max(0, Math.min(porConcentracao, acoesDisponiveis(), porTeto));
+}
+
+/* Emite ações para um investidor: tesouraria primeiro, depois capital autorizado. */
+function emitirAcoes(qtd) {
+  qtd = Math.max(0, Math.min(qtd, acoesDisponiveis()));
+  const daTesouraria = Math.min(state.acoesEmTesouraria, qtd);
+  state.acoesEmTesouraria -= daTesouraria;
+  state.acoesDisponiveisEmissao -= (qtd - daTesouraria);
   return qtd;
 }
 
-/* Concede cotas de bonificação a partir da Reserva da Empresa (depois Tesouraria do Fundo).
-   Retorna quantas foram efetivamente concedidas. */
-function concederBonificacao(qtd) {
-  qtd = Math.max(0, Math.min(qtd, cotasNaoDistribuidas()));
-  const daEmp = Math.min(state.reservaEmpresa, qtd);
-  state.reservaEmpresa -= daEmp;
-  state.tesourariaFundo -= (qtd - daEmp);
-  return qtd;
+/* Ações recompradas pela companhia voltam para a tesouraria */
+function devolverAcoesTesouraria(qtd) { state.acoesEmTesouraria += qtd; }
+
+/* Caixa reservado para a companhia recomprar na janela */
+function caixaReserva() {
+  return estadoNoMes(state.mesAtual).patrimonioVeiculo * (state.config.reservaPct / 100);
+}
+function capacidadeRecompra() {
+  const preco = precoJanela();
+  return preco > 0 ? Math.floor(caixaReserva() / preco) : 0;
 }
 
-/* Devolve cotas recompradas a um pool ('empresa' ou 'fundo') */
-function devolverCotas(qtd, destino) {
-  if (destino === 'empresa') state.reservaEmpresa += qtd;
-  else state.tesourariaFundo += qtd;
+/* Venda de ações na Janela: custo médio de aquisição → ganho → IR → líquido */
+function calcVendaJanela(inv, qtd, preco = precoJanela()) {
+  qtd = Math.max(0, Math.min(qtd, inv.acoes));
+  const custoMedio = inv.acoes > 0 ? (inv.valorPago || 0) / inv.acoes : 0;
+  const bruto = qtd * preco;
+  const custoBaixado = custoMedio * qtd;
+  const ganho = Math.max(0, bruto - custoBaixado);
+  const imposto = ganho * (state.config.irGanhoPct / 100);
+  return { qtd, preco, custoMedio, bruto, custoBaixado, ganho, imposto, liquido: bruto - imposto };
 }
 
-/* Ágio (>0) ou deságio (<0) da cotação de mercado sobre o valor patrimonial (NAV), em % */
-function agioDesagioPct() {
-  const nav = estadoNoMes(state.mesAtual).valorCota;
-  if (!nav) return 0;
-  return ((state.precoMercado - nav) / nav) * 100;
-}
-
-/* Cotas atualmente ofertadas à venda no mercado (pressão de oferta) */
-function ofertaMercado() {
-  return (state.mercado || []).filter(l => l.status === 'ativo').reduce((s, l) => s + l.cotas, 0);
-}
-
-/* Sem vesting: o fundo recompra as cotas pelo valor de mercado no momento da saída,
-   independente do tempo de casa. Ganho de capital sofre IRRF normalmente. */
-function calcSaidaScenario(cotista) {
-  const valorCotaAtual = estadoNoMes(state.mesAtual).valorCota;
-  const custoBaseTotal = cotista.valorPagoCompras || 0;
-  const totalCotasC = cotista.cotas;
-  const valorVenda = totalCotasC * valorCotaAtual;
-  const ganho = Math.max(0, valorVenda - custoBaseTotal);
-  const imposto = ganho * (state.config.irrfPct / 100);
-  const valorLiquido = valorVenda - imposto;
-  return { totalCotas: totalCotasC, valorCotaAtual, valorVenda, ganho, imposto, valorLiquido };
-}
-
-/* Simula dividendos futuros para um cotista, assumindo cotas constantes
-   (sem novas compras/bonificações) e um lucro mensal projetado fixo. */
-function calcSimulacaoDividendos(cotista, lucroProjetado, meses) {
+/* Projeta dividendos futuros do investidor, assumindo posição constante */
+function calcSimulacaoDividendos(inv, lucroProjetado, meses) {
   const linhas = [];
   let acumulado = 0;
+  const porAcao = dividendoPorAcao(lucroProjetado, state.config);
   for (let i = 1; i <= meses; i++) {
-    const m = state.mesAtual + i;
-    const e = estadoNoMes(m);
-    const fundoRecebe = lucroProjetado * (state.config.participacaoPct / 100);
-    const custoMensal = e.patrimonioFundo * (state.config.taxaAdmPct / 100 / 12) + state.config.auditoriaAnual / 12;
-    const liquido = fundoRecebe - custoMensal;
-    const dividendoPorCota = liquido / state.config.totalCotas;
-    const dividendoCotista = cotista.cotas * dividendoPorCota;
-    acumulado += dividendoCotista;
-    linhas.push({ mes: m, dividendoCotista, acumulado });
+    const valor = inv.acoes * porAcao;
+    acumulado += valor;
+    linhas.push({ mes: state.mesAtual + i, dividendo: valor, acumulado });
   }
   return linhas;
 }
 
-function registrarCompra(cotistaId, valorReais) {
-  const cotista = getCotista(cotistaId);
-  if (!cotista || !valorReais || valorReais <= 0) return;
-  const valorCotaAtual = estadoNoMes(state.mesAtual).valorCota;
-  let qtd = Math.floor(valorReais / valorCotaAtual);
-  const jaComprado = cotista.compradoNoMes[state.mesAtual] || 0;
-  const restante = state.config.limiteCompraMes - jaComprado;
-  if (restante <= 0) { toast('Limite mensal de compra já atingido para este cotista.'); return; }
-  const margem = margemCompra(cotista);
-  if (margem <= 0) { toast(`Limite de concentração atingido (máx. ${fmtNum(maxCotasPorCotista())} cotas por cotista).`); return; }
-  qtd = Math.min(qtd, restante, margem);
-  if (qtd <= 0) { toast('Valor insuficiente para comprar ao menos 1 cota.'); return; }
-  qtd = emitirCotas(qtd); // primária: sai da Tesouraria do Fundo / Reserva da Empresa
-  if (qtd <= 0) { toast('Não há cotas disponíveis nos pools para emissão.'); return; }
-  const custo = qtd * valorCotaAtual;
-  cotista.cotas += qtd;
-  cotista.cotasCompradas += qtd;
-  cotista.valorPagoCompras += custo;
-  cotista.compradoNoMes[state.mesAtual] = jaComprado + qtd;
-  cotista.historico.push({ mes: state.mesAtual, tipo: 'compra', qtd, valor: custo, desc: 'Compra de cotas (emissão primária)' });
-  persist();
-  toast(`${cotista.nome} comprou ${qtd} cotas por ${fmtBRL(custo)}.`);
-  renderAll();
+/* Aporte primário: o investidor põe dinheiro novo e a companhia emite ações
+   ao valor patrimonial do mês. É a única porta de entrada de capital novo. */
+function registrarAporte(investidorId, valorReais, silencioso = false) {
+  const inv = getInvestidor(investidorId);
+  if (!inv || !valorReais || valorReais <= 0) return 0;
+  const preco = estadoNoMes(state.mesAtual).valorAcao;
+  const margem = margemAporte(inv, preco);
+  if (margem <= 0) {
+    if (!silencioso) {
+      const semTeto = tetoRestanteAno(inv) <= 0;
+      toast(semTeto
+        ? `${inv.nome} atingiu o teto anual de ${fmtBRL0(state.config.tetoAporteAnualCrowd)} (crowdfunding).`
+        : `Limite de concentração ou ações disponíveis esgotados.`);
+    }
+    return 0;
+  }
+  let qtd = Math.min(Math.floor(valorReais / preco), margem);
+  if (qtd <= 0) { if (!silencioso) toast('Valor insuficiente para adquirir ao menos 1 ação.'); return 0; }
+  qtd = emitirAcoes(qtd);
+  if (qtd <= 0) { if (!silencioso) toast('Não há ações disponíveis para emissão.'); return 0; }
+
+  const custo = qtd * preco;
+  const ano = anoDoMes(state.mesAtual);
+  inv.acoes += qtd;
+  inv.valorPago += custo;
+  inv.aportadoNoAno[ano] = (inv.aportadoNoAno[ano] || 0) + custo;
+  inv.historico.push({ mes: state.mesAtual, tipo: 'aporte', qtd, valor: custo, desc: 'Aporte — emissão de novas ações' });
+  if (!silencioso) {
+    persist();
+    toast(`${inv.nome} aportou ${fmtBRL(custo)} e recebeu ${fmtNum(qtd)} ações.`);
+    renderAll();
+  }
+  return qtd;
 }
 
 /* ============================================================
@@ -477,20 +456,20 @@ function openSheet(titleHtml, itemsHtml, onMount) {
 }
 function closeSheet() { document.getElementById('sheet-root').innerHTML = ''; }
 
-function openCotistaPicker(currentId, onPick, excludeId, titulo) {
-  const base = state.cotistas.filter(c => c.id !== excludeId);
-  const lideres = base.filter(c => c.papel === 'lider');
-  const colaboradores = base.filter(c => c.papel === 'colaborador');
+function openInvestidorPicker(currentId, onPick, excludeId, titulo) {
+  const base = state.investidores.filter(c => c.id !== excludeId);
   const itemHtml = (c) => `
     <button class="sheet-item" data-pick="${c.id}">
       <span class="ic">${c.id === currentId ? '●' : '○'}</span>
-      <span>${c.papel === 'lider' ? '<span class="pick-tag">LÍDER</span> ' : ''}${c.nome} <span style="color:var(--ink-faint); font-size:11.5px;">— ${c.unidade}</span></span>
+      <span>${c.nome} <span style="color:var(--ink-faint); font-size:11.5px;">— ${fmtNum(c.acoes)} ações</span></span>
     </button>`;
   const itemsHtml = `<div>
-    ${lideres.length ? `<div class="sheet-subhead">Líderes de Área</div>${lideres.map(itemHtml).join('')}` : ''}
-    ${colaboradores.length ? `<div class="sheet-subhead">Colaboradores</div>${colaboradores.map(itemHtml).join('')}` : ''}
+    ${ORIGENS.map(o => {
+      const grupo = base.filter(c => c.origem === o.key).sort((a, b) => b.acoes - a.acoes);
+      return grupo.length ? `<div class="sheet-subhead">${o.label}</div>${grupo.map(itemHtml).join('')}` : '';
+    }).join('')}
   </div>`;
-  openSheet(`<h3>${titulo || 'Selecionar Cotista'}</h3>`, itemsHtml, (root) => {
+  openSheet(`<h3>${titulo || 'Selecionar Investidor'}</h3>`, itemsHtml, (root) => {
     root.querySelectorAll('[data-pick]').forEach(b => {
       b.addEventListener('click', () => { onPick(Number(b.dataset.pick)); closeSheet(); });
     });
@@ -535,33 +514,40 @@ function svgLineChart(points, opts = {}) {
   </svg>`;
 }
 
-function svgDonut(pctA, pctB, colorA, colorB, labelA, labelB, totalLabel) {
+/* Donut de composição: fatias = [{label, valor, cor}]; centro mostra valorCentro/labelCentro */
+function svgDonut(fatias, valorCentro, labelCentro) {
   const size = 160, r = 58, c = 2 * Math.PI * r, cx = size / 2, cy = size / 2;
-  const aLen = (pctA / 100) * c;
+  const total = fatias.reduce((s, f) => s + Math.max(0, f.valor), 0) || 1;
+  let offset = 0;
+  const arcos = fatias.map(f => {
+    const len = (Math.max(0, f.valor) / total) * c;
+    const arco = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${f.cor}" stroke-width="17"
+      stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${c * 0.25 - offset}"/>`;
+    offset += len;
+    return arco;
+  }).join('');
   return `
   <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
     <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${colorB}" stroke-opacity="0.25" stroke-width="17"/>
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${colorA}" stroke-width="17"
-        stroke-dasharray="${aLen} ${c - aLen}" stroke-dashoffset="${c * 0.25}" stroke-linecap="round"/>
-      <text x="${cx}" y="${cy - 3}" text-anchor="middle" class="donut-label" font-size="19" fill="#f1ead8" font-weight="700">${pctA.toFixed(0)}%</text>
-      <text x="${cx}" y="${cy + 14}" text-anchor="middle" class="donut-label" font-size="8.5" fill="#a39c89">FUNCIONÁRIOS</text>
+      ${arcos}
+      <text x="${cx}" y="${cy - 3}" text-anchor="middle" class="donut-label" font-size="17" fill="#f1ead8" font-weight="700">${valorCentro}</text>
+      <text x="${cx}" y="${cy + 14}" text-anchor="middle" class="donut-label" font-size="7.5" fill="#a39c89">${labelCentro}</text>
     </svg>
     <div style="display:flex; flex-direction:column; gap:8px; font-size:12px; flex:1; min-width:140px;">
-      <div style="display:flex; align-items:center; gap:7px;"><span style="width:9px;height:9px;border-radius:3px;background:${colorA};display:inline-block;"></span>${labelA}</div>
-      <div style="display:flex; align-items:center; gap:7px;"><span style="width:9px;height:9px;border-radius:3px;background:${colorB};display:inline-block; opacity:.5;"></span>${labelB}</div>
-      <div style="font-family:var(--mono); font-size:10px; color:var(--ink-faint); margin-top:2px;">${totalLabel}</div>
+      ${fatias.map(f => `<div style="display:flex; align-items:center; justify-content:space-between; gap:7px;">
+        <span style="display:flex; align-items:center; gap:7px;"><span style="width:9px;height:9px;border-radius:3px;background:${f.cor};display:inline-block;"></span>${f.label}</span>
+        <span style="font-family:var(--mono); color:var(--ink-dim);">${fmtNum(f.valor)} · ${((f.valor / total) * 100).toFixed(1)}%</span>
+      </div>`).join('')}
     </div>
   </div>`;
 }
 
 function badgeTipo(tipo) {
-  if (tipo === 'bonificacao') return `<span class="badge gold">BÔNUS</span>`;
-  if (tipo === 'compra') return `<span class="badge neutral">COMPRA</span>`;
+  if (tipo === 'aporte') return `<span class="badge gold">APORTE</span>`;
   if (tipo === 'dividendo') return `<span class="badge olive">DIVIDENDO</span>`;
   if (tipo === 'reinvestimento') return `<span class="badge olive">REINVESTIDO</span>`;
-  if (tipo === 'venda') return `<span class="badge rust">VENDA</span>`;
-  if (tipo === 'compra-mercado') return `<span class="badge neutral">COMPRA MERCADO</span>`;
+  if (tipo === 'venda-janela') return `<span class="badge rust">VENDA</span>`;
+  if (tipo === 'compra-janela') return `<span class="badge neutral">COMPRA</span>`;
   return tipo;
 }
 
@@ -574,12 +560,11 @@ function renderAll() {
   const v = state.activeView;
   if (v === 'overview') renderOverview();
   else if (v === 'config') renderConfig();
-  else if (v === 'cotistas') renderCotistas();
+  else if (v === 'investidores') renderInvestidores();
   else if (v === 'ciclo') renderCiclo();
   else if (v === 'evolucao') renderEvolucao();
   else if (v === 'portal') renderPortal();
-  else if (v === 'saida') renderSaida();
-  else if (v === 'mercado') renderMercado();
+  else if (v === 'janela') renderJanela();
   else if (v === 'regras') renderRegras();
 }
 
@@ -595,85 +580,91 @@ function renderNav() {
 
 function renderTicker() {
   const e = estadoNoMes(state.mesAtual);
-  const distrib = totalDistribuido();
   document.getElementById('m-ticker').innerHTML = `
     <div class="chip"><span class="l">Mês</span><span class="v">${state.mesAtual}</span></div>
-    <div class="chip gold"><span class="l">Cota</span><span class="v">${fmtBRL(e.valorCota)}</span></div>
-    <div class="chip"><span class="l">Patrimônio</span><span class="v">${fmtShort(e.patrimonioFundo)}</span></div>
-    <div class="chip"><span class="l">Cotas</span><span class="v">${fmtNum(distrib)}/${fmtNum(state.config.totalCotas)}</span></div>
+    <div class="chip gold"><span class="l">Ação</span><span class="v">${fmtBRL(e.valorAcao)}</span></div>
+    <div class="chip"><span class="l">Patrimônio</span><span class="v">${fmtShort(e.patrimonioVeiculo)}</span></div>
+    <div class="chip"><span class="l">Próx. Janela</span><span class="v">${janelaAberta() ? 'aberta' : 'M' + proximaJanelaMes()}</span></div>
   `;
 }
 
+function badgeOrigem(origem) {
+  const o = ORIGENS.find(x => x.key === origem) || ORIGENS[0];
+  return origem === 'privada'
+    ? `<span class="badge gold">${o.label.toUpperCase()}</span>`
+    : `<span class="badge neutral">${o.label.toUpperCase()}</span>`;
+}
+
 /* ============================================================
-   PORTAL DO FUNCIONÁRIO (HOME)
+   MINHA POSIÇÃO (HOME DO INVESTIDOR)
    ============================================================ */
 function renderPortal() {
-  const c = getCotista(state.portalSelId) || state.cotistas[0];
-  document.getElementById('portal-switch-label').textContent = `${c.nome} — ${c.unidade}`;
+  const inv = getInvestidor(state.portalSelId) || state.investidores[0];
+  if (!inv) return;
+  const cfg = state.config;
+  document.getElementById('portal-switch-label').textContent = `${inv.nome} — ${ORIGENS.find(o => o.key === inv.origem).label}`;
 
-  const valorCotaAtual = estadoNoMes(state.mesAtual).valorCota;
-  const tempoCasa = state.mesAtual - c.mesEntrada;
-  const totalDividendos = c.historico.filter(h => h.tipo === 'dividendo').reduce((s, h) => s + h.valor, 0);
-  const totalInvestido = c.valorPagoCompras || 0;
-  const valorAtual = c.cotas * valorCotaAtual;
-  const cotasAnunciadasC = cotasAnunciadas(c.id);
-  const cotasLivresVenda = cotasDisponiveisVenda(c);
-  const historicoOrdenado = [...c.historico].sort((a, b) => b.mes - a.mes)
+  const valorAcao = estadoNoMes(state.mesAtual).valorAcao;
+  const totalDividendos = inv.historico.filter(h => h.tipo === 'dividendo').reduce((s, h) => s + h.valor, 0);
+  const valorAtual = inv.acoes * valorAcao;
+  const custoMedio = inv.acoes > 0 ? inv.valorPago / inv.acoes : 0;
+  const ganhoNaoRealizado = valorAtual - inv.valorPago;
+  const naFila = acoesNaFila(inv.id);
+  const historicoOrdenado = [...inv.historico].sort((a, b) => b.mes - a.mes)
     .filter(h => dentroDoPeriodo(h.mes, state.mesAtual, state.portalPeriodo));
 
   document.getElementById('portal-body').innerHTML = `
     <div class="hero-card">
-      <div class="avatar ${c.papel === 'lider' ? 'lider' : ''}" style="background-image:url('${c.fotoUrl}'); background-size:cover; background-position:center;">${c.papel === 'lider' ? '<span class="crown">★</span>' : ''}</div>
-      <div class="name">${c.nome}</div>
-      <div class="role">${c.papel === 'lider' ? '<span class="badge gold" style="margin-right:6px;">LÍDER DE ÁREA</span>' : '<span class="badge neutral" style="margin-right:6px;">COLABORADOR(A)</span>'}${c.unidade}</div>
-      <div class="lbl">Suas cotas valem hoje</div>
+      <div class="avatar" style="background-image:url('${inv.fotoUrl}'); background-size:cover; background-position:center;"></div>
+      <div class="name">${inv.nome}</div>
+      <div class="role">${badgeOrigem(inv.origem)} desde ${fmtMes(inv.mesEntrada)}</div>
+      <div class="lbl">Sua posição vale hoje</div>
       <div class="big">${fmtBRL0(valorAtual)}</div>
-      <div class="sub">${fmtNum(c.cotas)} cotas (${fmtNum(c.cotasBonificadas)} bônus + ${fmtNum(c.cotasCompradas)} compradas) × ${fmtBRL(valorCotaAtual)}</div>
+      <div class="sub">${fmtNum(inv.acoes)} ações × ${fmtBRL(valorAcao)}</div>
       <div class="rendimento-pill">+ ${fmtBRL0(totalDividendos)} em dividendos recebidos até hoje</div>
     </div>
 
     <div class="stat-grid">
-      <div class="kpi-card"><span class="lbl">Pago do Bolso</span><span class="val">${fmtBRL0(totalInvestido)}</span><span class="sub">${fmtNum(c.cotasCompradas)} compradas · +${fmtNum(c.cotasBonificadas)} de bônus grátis</span></div>
+      <div class="kpi-card"><span class="lbl">Total aportado</span><span class="val">${fmtBRL0(inv.valorPago)}</span><span class="sub">custo médio ${fmtBRL(custoMedio)}/ação</span></div>
       <div class="kpi-card">
         <span class="lbl">Dividendos</span><span class="val">${fmtBRL0(totalDividendos)}</span><span class="sub">recebido até hoje</span>
         <button class="kpi-mini-btn" id="btn-quick-sim">Simular ›</button>
       </div>
+      <div class="kpi-card"><span class="lbl">Valorização</span><span class="val ${ganhoNaoRealizado >= 0 ? '' : ''}">${fmtBRL0(ganhoNaoRealizado)}</span><span class="sub ${ganhoNaoRealizado >= 0 ? 'pos' : 'neg'}">${inv.valorPago > 0 ? fmtPct(ganhoNaoRealizado / inv.valorPago * 100) : '—'} sobre o aportado</span></div>
+      <div class="kpi-card"><span class="lbl">Retorno total</span><span class="val">${fmtBRL0(ganhoNaoRealizado + totalDividendos)}</span><span class="sub">valorização + dividendos</span></div>
     </div>
 
     <div class="m-card">
-      <div class="panel-title"><h2>Meu Plano de Investidor</h2><span class="meta">automático</span></div>
-      <div class="field"><label>Investimento mensal via folha (R$) — 0 desativa</label><input type="number" id="plano-mensal-input" min="0" step="25" value="${c.planoMensal || 0}"></div>
+      <div class="panel-title"><h2>Meu Plano de Aportes</h2><span class="meta">automático</span></div>
+      <div class="field"><label>Aporte mensal (R$) — 0 desativa</label><input type="number" id="plano-mensal-input" min="0" step="50" value="${inv.planoMensal || 0}"></div>
       <p class="hint" id="plano-mensal-preview" style="margin-bottom:14px;"></p>
       <label class="drip-toggle">
-        <input type="checkbox" id="drip-toggle" ${c.reinvestirDividendos ? 'checked' : ''}>
+        <input type="checkbox" id="drip-toggle" ${inv.reinvestir ? 'checked' : ''}>
         <span class="box"></span>
-        <span class="txt"><strong>Reinvestir dividendos automaticamente</strong><br>Seus dividendos acumulam como crédito e, a cada cota inteira, viram novas cotas no fechamento do mês.</span>
+        <span class="txt"><strong>Reinvestir dividendos automaticamente</strong><br>Seus dividendos acumulam como crédito e, a cada ação inteira, viram novas ações no fechamento do mês.</span>
       </label>
-      ${c.reinvestirDividendos && (c.creditoReinvestimento || 0) > 0 ? `<p class="hint" style="margin-top:10px; color:var(--olive);">Crédito acumulado: ${fmtBRL(c.creditoReinvestimento)} — faltam ${fmtBRL(Math.max(0, valorCotaAtual - c.creditoReinvestimento))} para a próxima cota.</p>` : ''}
-      <p class="hint" style="margin-top:10px;">Limites: ${state.config.limiteCompraMes} cotas/mês de compra · máx. ${fmtNum(maxCotasPorCotista())} cotas por cotista (${state.config.limiteConcentracaoPct}% do fundo).</p>
+      ${inv.reinvestir && (inv.creditoReinvestimento || 0) > 0 ? `<p class="hint" style="margin-top:10px; color:var(--olive);">Crédito acumulado: ${fmtBRL(inv.creditoReinvestimento)} — faltam ${fmtBRL(Math.max(0, valorAcao - inv.creditoReinvestimento))} para a próxima ação.</p>` : ''}
+      <p class="hint" style="margin-top:10px;">${inv.origem === 'crowdfunding'
+        ? `Teto anual de ${fmtBRL0(cfg.tetoAporteAnualCrowd)} por investidor de varejo — resta ${fmtBRL0(tetoRestanteAno(inv))} neste ano.`
+        : 'Oferta privada: sem teto anual de aporte.'} Máximo de ${fmtNum(maxAcoesPorInvestidor())} ações por investidor (${cfg.limiteConcentracaoPct}% da companhia).</p>
     </div>
 
     <div class="m-card">
-      <div class="panel-title"><h2>Propriedade das Cotas</h2><span class="meta">100% sua</span></div>
-      <p class="hint">Suas cotas são 100% suas desde o dia em que você as recebeu ou comprou — não existe carência. Na entrada da empresa (${fmtMes(c.mesEntrada)}, há ${tempoCasa} ${tempoCasa === 1 ? 'mês' : 'meses'}), você já é proprietário pleno. Se sair da empresa, o fundo recompra suas cotas pelo valor de mercado do momento — simule na aba Saída &amp; Recompra.</p>
-    </div>
-
-    <div class="m-card">
-      <div class="panel-title"><h2>Vender no Mercado de Cotas</h2><span class="meta">liquidez</span></div>
-      <p class="hint" style="margin-bottom:12px;">Quer realizar parte do ganho sem sair da empresa? Você pode anunciar cotas para outro cotista comprar. Cotas livres para anunciar: <strong style="color:var(--ink);">${fmtNum(cotasLivresVenda)}</strong>${cotasAnunciadasC > 0 ? ` · <span style="color:var(--gold-bright);">${fmtNum(cotasAnunciadasC)} já anunciadas</span>` : ''}.</p>
-      <button class="btn primary full" id="btn-anunciar-portal" ${cotasLivresVenda <= 0 ? 'disabled' : ''}>Anunciar cotas à venda</button>
+      <div class="panel-title"><h2>Janela de Liquidez</h2><span class="meta">${janelaAberta() ? 'aberta' : fmtMes(proximaJanelaMes())}</span></div>
+      <p class="hint" style="margin-bottom:12px;">Para vender, você entra na fila e é atendido na próxima janela, pelo preço apurado por fórmula (hoje ${fmtBRL(valorAcao)}). ${naFila > 0 ? `<strong style="color:var(--gold-bright);">Você já tem ${fmtNum(naFila)} ações na fila.</strong>` : `Ações livres para vender: <strong style="color:var(--ink);">${fmtNum(acoesLivres(inv))}</strong>.`}</p>
+      <button class="btn primary full" id="btn-vender-portal" ${acoesLivres(inv) <= 0 ? 'disabled' : ''}>Entrar na fila de venda</button>
     </div>
 
     <div class="m-card">
       <div class="panel-title"><h2>Simular Dividendos Futuros</h2><span class="meta">projeção</span></div>
-      <div class="field"><label>Lucro mensal projetado da academia (R$)</label><input type="number" id="sim-div-lucro" step="2000" value="${state.simDiv.lucro}"></div>
+      <div class="field"><label>Lucro mensal projetado da unidade (R$)</label><input type="number" id="sim-div-lucro" step="2000" value="${state.simDiv.lucro}"></div>
       <div class="field"><label>Horizonte (meses)</label><input type="number" id="sim-div-meses" min="1" max="60" step="1" value="${state.simDiv.meses}"></div>
       <div class="stat-grid">
-        <div class="kpi-card"><span class="lbl">Próximo mês</span><span class="val" id="sim-div-proximo">—</span><span class="sub">com ${fmtNum(c.cotas)} cotas</span></div>
+        <div class="kpi-card"><span class="lbl">Próximo mês</span><span class="val" id="sim-div-proximo">—</span><span class="sub">com ${fmtNum(inv.acoes)} ações</span></div>
         <div class="kpi-card"><span class="lbl">Acumulado</span><span class="val" id="sim-div-total">—</span><span class="sub" id="sim-div-meses-label"></span></div>
       </div>
       <div id="sim-div-chart"></div>
-      <p class="hint" style="margin-top:10px;">Assume ${fmtNum(c.cotas)} cotas constantes, sem novas compras ou bonificações no período simulado.</p>
+      <p class="hint" style="margin-top:10px;">Assume ${fmtNum(inv.acoes)} ações constantes, sem novos aportes no período simulado.</p>
     </div>
 
     <div class="m-card" style="padding-bottom:8px;">
@@ -685,7 +676,7 @@ function renderPortal() {
             <div class="citem">
               <div class="citem-top">
                 <div><span class="citem-name">${h.desc}</span><div class="citem-meta">${fmtMes(h.mes)}</div></div>
-                <div class="citem-val">${badgeTipo(h.tipo)}<span class="big" style="margin-top:4px;">${h.qtd != null ? (h.qtd >= 0 ? '+' : '') + fmtNum(h.qtd) + ' cotas' : fmtBRL(h.valor)}</span></div>
+                <div class="citem-val">${badgeTipo(h.tipo)}<span class="big" style="margin-top:4px;">${h.qtd != null ? (h.qtd >= 0 ? '+' : '') + fmtNum(h.qtd) + ' ações' : fmtBRL(h.valor)}</span></div>
               </div>
             </div>`).join('')}
         </div>` : `<div class="empty">Nenhum lançamento neste período.</div>`}
@@ -694,24 +685,23 @@ function renderPortal() {
 
   wirePeriodoChips('portal', (key) => { state.portalPeriodo = key; persist(); renderPortal(); });
 
-  // Plano do investidor: desconto em folha + reinvestimento automático
   const planoInput = document.getElementById('plano-mensal-input');
   const planoPreview = document.getElementById('plano-mensal-preview');
   const atualizaPlano = () => {
     const v = Math.max(0, Number(planoInput.value) || 0);
-    c.planoMensal = v;
+    inv.planoMensal = v;
     if (v > 0) {
-      const qtd = Math.floor(v / valorCotaAtual);
-      planoPreview.textContent = `No fechamento do mês: ${fmtBRL0(v)} descontados em folha viram ≈ ${qtd} ${qtd === 1 ? 'cota' : 'cotas'} (cota a ${fmtBRL(valorCotaAtual)}).`;
+      const qtd = Math.floor(v / valorAcao);
+      planoPreview.textContent = `No fechamento do mês: ${fmtBRL0(v)} viram ≈ ${qtd} ${qtd === 1 ? 'ação' : 'ações'} novas (ação a ${fmtBRL(valorAcao)}).`;
     } else {
-      planoPreview.textContent = 'Sem plano ativo — você ainda pode comprar cotas avulsas na aba Cotistas.';
+      planoPreview.textContent = 'Sem aporte recorrente — você ainda pode aportar avulso na aba Investidores.';
     }
     persist();
   };
   planoInput.addEventListener('input', atualizaPlano);
   atualizaPlano();
   document.getElementById('drip-toggle').addEventListener('change', (ev) => {
-    c.reinvestirDividendos = ev.target.checked;
+    inv.reinvestir = ev.target.checked;
     persist();
     toast(ev.target.checked ? 'Reinvestimento automático ativado.' : 'Reinvestimento automático desativado.');
   });
@@ -720,8 +710,8 @@ function renderPortal() {
     const lucro = Number(document.getElementById('sim-div-lucro').value) || 0;
     const mesesIn = Math.max(1, Math.min(60, Number(document.getElementById('sim-div-meses').value) || 1));
     state.simDiv = { lucro, meses: mesesIn };
-    const linhas = calcSimulacaoDividendos(c, lucro, mesesIn);
-    document.getElementById('sim-div-proximo').textContent = fmtBRL(linhas[0].dividendoCotista);
+    const linhas = calcSimulacaoDividendos(inv, lucro, mesesIn);
+    document.getElementById('sim-div-proximo').textContent = fmtBRL(linhas[0].dividendo);
     document.getElementById('sim-div-total').textContent = fmtBRL0(linhas[linhas.length - 1].acumulado);
     document.getElementById('sim-div-meses-label').textContent = `em ${mesesIn} ${mesesIn === 1 ? 'mês' : 'meses'}`;
     document.getElementById('sim-div-chart').innerHTML = svgLineChart(
@@ -733,15 +723,15 @@ function renderPortal() {
   document.getElementById('sim-div-meses').addEventListener('input', atualizaSimDiv);
   atualizaSimDiv();
 
-  document.getElementById('btn-quick-sim').addEventListener('click', () => abrirModalSimDividendo(c));
-  const btnAnunciar = document.getElementById('btn-anunciar-portal');
-  if (btnAnunciar) btnAnunciar.addEventListener('click', () => abrirModalAnuncio(c.id));
+  document.getElementById('btn-quick-sim').addEventListener('click', () => abrirModalSimDividendo(inv));
+  const btnVender = document.getElementById('btn-vender-portal');
+  if (btnVender) btnVender.addEventListener('click', () => abrirModalVenda(inv.id));
 }
 
-function abrirModalSimDividendo(cotista) {
+function abrirModalSimDividendo(inv) {
   openModal(`
-    <h3>Simular Dividendos — ${cotista.nome}</h3>
-    <p class="hint">Com ${fmtNum(cotista.cotas)} cotas, mantidas constantes ao longo do período.</p>
+    <h3>Simular Dividendos — ${inv.nome}</h3>
+    <p class="hint">Com ${fmtNum(inv.acoes)} ações, mantidas constantes ao longo do período.</p>
     <div class="field" style="margin-top:12px;"><label>Lucro mensal projetado (R$)</label><input type="number" id="modal-sim-lucro" step="2000" value="${state.simDiv.lucro}"></div>
     <div class="field"><label>Horizonte (meses)</label><input type="number" id="modal-sim-meses" min="1" max="60" step="1" value="${state.simDiv.meses}"></div>
     <div class="stat-grid">
@@ -757,8 +747,8 @@ function abrirModalSimDividendo(cotista) {
       const lucro = Number(root.querySelector('#modal-sim-lucro').value) || 0;
       const meses = Math.max(1, Math.min(60, Number(root.querySelector('#modal-sim-meses').value) || 1));
       state.simDiv = { lucro, meses };
-      const linhas = calcSimulacaoDividendos(cotista, lucro, meses);
-      root.querySelector('#modal-sim-proximo').textContent = fmtBRL(linhas[0].dividendoCotista);
+      const linhas = calcSimulacaoDividendos(inv, lucro, meses);
+      root.querySelector('#modal-sim-proximo').textContent = fmtBRL(linhas[0].dividendo);
       root.querySelector('#modal-sim-total').textContent = fmtBRL0(linhas[linhas.length - 1].acumulado);
       root.querySelector('#modal-sim-chart').innerHTML = svgLineChart(
         linhas.map(l => ({ y: l.acumulado, label: `M${l.mes}` })), { width: 300, height: 130, pad: 24 }
@@ -773,59 +763,77 @@ function abrirModalSimDividendo(cotista) {
 }
 
 /* ============================================================
-   VISÃO GERAL
+   A COMPANHIA (VISÃO GERAL)
    ============================================================ */
 function renderOverview() {
+  const cfg = state.config;
   const e = estadoNoMes(state.mesAtual);
-  const e0 = estadoNoMes(0);
-  const variacaoCota = ((e.valorCota - e0.valorCota) / e0.valorCota) * 100;
+  const anterior = estadoNoMes(Math.max(0, state.mesAtual - 12));
+  const variacao = anterior.valorAcao > 0 ? ((e.valorAcao - anterior.valorAcao) / anterior.valorAcao) * 100 : 0;
+  const comInv = acoesComInvestidores();
+  const ativos = investidoresAtivos();
+  const divAcao = dividendoPorAcao(cfg.lucroMensal, cfg);
+  const yieldAnual = e.valorAcao > 0 ? (divAcao * 12 / e.valorAcao) * 100 : 0;
 
   document.getElementById('overview-kpis').innerHTML = `
-    <div class="kpi-card"><span class="lbl">Valuation Academia</span><span class="val">${fmtShort(e.valuation)}</span><span class="sub">múltiplo ${state.config.multiplo}x</span></div>
-    <div class="kpi-card"><span class="lbl">Valor Patrimonial (NAV)</span><span class="val">${fmtBRL(e.valorCota)}</span><span class="sub ${variacaoCota >= 0 ? 'pos' : 'neg'}">${variacaoCota >= 0 ? '+' : ''}${fmtPct(variacaoCota)}</span></div>
-    <div class="kpi-card"><span class="lbl">Preço de Mercado</span><span class="val">${fmtBRL(state.precoMercado)}</span><span class="sub ${agioDesagioPct() > 0.5 ? 'neg' : agioDesagioPct() < -0.5 ? 'pos' : ''}">${Math.abs(agioDesagioPct()) < 0.5 ? 'no NAV' : (agioDesagioPct() > 0 ? 'ágio ' : 'deságio ') + fmtPct(Math.abs(agioDesagioPct()))}</span></div>
-    <div class="kpi-card"><span class="lbl">Patrimônio do Fundo</span><span class="val">${fmtShort(e.patrimonioFundo)}</span><span class="sub">${fmtPct(state.config.participacaoPct, 0)} da academia</span></div>
-    <div class="kpi-card"><span class="lbl">Cotistas Ativos</span><span class="val">${state.cotistas.length}</span><span class="sub">${state.cotistas.filter(c => c.papel === 'lider').length} líderes</span></div>
+    <div class="kpi-card"><span class="lbl">Valor da Ação</span><span class="val">${fmtBRL(e.valorAcao)}</span><span class="sub ${variacao >= 0 ? 'pos' : 'neg'}">${variacao >= 0 ? '+' : ''}${fmtPct(variacao)} em 12 meses</span></div>
+    <div class="kpi-card"><span class="lbl">Patrimônio da Companhia</span><span class="val">${fmtShort(e.patrimonioVeiculo)}</span><span class="sub">${fmtPct(cfg.participacaoPct, 0)} da ${cfg.nomeUnidade}</span></div>
+    <div class="kpi-card"><span class="lbl">Dividendo por Ação</span><span class="val">${fmtBRL(divAcao)}</span><span class="sub pos">${fmtPct(yieldAnual)} ao ano</span></div>
+    <div class="kpi-card"><span class="lbl">Investidores</span><span class="val">${ativos.length}</span><span class="sub">${ativos.filter(i => i.origem === 'privada').length} privada · ${ativos.filter(i => i.origem === 'crowdfunding').length} crowdfunding</span></div>
+  `;
+
+  document.getElementById('overview-valuation').innerHTML = `
+    <div class="scenario-row"><span class="k">Lucro mensal da unidade</span><span class="v">${fmtBRL0(cfg.lucroMensal)}</span></div>
+    <div class="scenario-row"><span class="k">Valuation (${cfg.multiplo}× lucro anual)</span><span class="v">${fmtBRL0(e.valuation)}</span></div>
+    <div class="scenario-row"><span class="k">Participação da companhia (${cfg.participacaoPct}%)</span><span class="v">${fmtBRL0(e.participacao)}</span></div>
+    <div class="scenario-row"><span class="k">Custos acumulados do veículo</span><span class="v">− ${fmtBRL0(e.custoAcumulado)}</span></div>
+    <div class="scenario-row total"><span class="k">Patrimônio líquido</span><span class="v">${fmtBRL0(e.patrimonioVeiculo)}</span></div>
   `;
 
   const pontos = [];
-  const passo = Math.max(1, Math.floor(state.mesAtual / 10)) || 1;
-  for (let m = 0; m <= state.mesAtual; m += passo) pontos.push({ y: estadoNoMes(m).valorCota, label: `M${m}` });
-  if (pontos[pontos.length - 1].label !== `M${state.mesAtual}`) pontos.push({ y: e.valorCota, label: `M${state.mesAtual}` });
-  document.getElementById('overview-chart').innerHTML = svgLineChart(pontos);
-  document.getElementById('overview-chart-meta').textContent = `mês 0 → ${state.mesAtual}`;
+  for (let m = Math.max(0, state.mesAtual - 24); m <= state.mesAtual; m++) pontos.push({ y: estadoNoMes(m).valorAcao, label: `M${m}` });
+  document.getElementById('overview-chart').innerHTML = svgLineChart(pontos, { height: 170 });
 
-  const distrib = totalDistribuido();
-  const pctFunc = (distrib / state.config.totalCotas) * 100;
-  document.getElementById('overview-donut').innerHTML = svgDonut(
-    pctFunc, 100 - pctFunc, '#d9a440', '#605c4c',
-    `${fmtNum(distrib)} cotas com funcionários`, `${fmtNum(state.config.totalCotas - distrib)} em tesouraria`,
-    `${fmtNum(state.config.totalCotas)} cotas totais`
-  );
+  document.getElementById('overview-donut').innerHTML = svgDonut([
+    { label: 'Investidores', valor: comInv, cor: '#d9a440' },
+    { label: 'Tesouraria', valor: state.acoesEmTesouraria, cor: '#8aab5e' },
+    { label: 'A emitir', valor: state.acoesDisponiveisEmissao, cor: '#3a3b28' }
+  ], fmtNum(comInv), 'COM INVESTIDORES');
 
-  // Posse das cotas + liquidez para recompras
-  const reservaEmp = state.reservaEmpresa || 0;
-  const tesFundo = state.tesourariaFundo || 0;
-  const reserva = e.patrimonioFundo * (state.config.reservaPct / 100);
-  const capacidadeRecompra = Math.floor(reserva / e.valorCota);
-  const pendentes = (state.pagamentosPendentes || []).filter(p => p.status === 'pendente');
-  const totalPendente = pendentes.reduce((s, p) => s + p.valorLiquido, 0);
-  document.getElementById('overview-tesouraria').innerHTML = `
-    <div class="scenario-row"><span class="k">Reserva da Empresa (p/ bonificar)</span><span class="v">${fmtNum(reservaEmp)} cotas · ${fmtBRL0(reservaEmp * e.valorCota)}</span></div>
-    <div class="scenario-row"><span class="k">Tesouraria do Fundo (p/ recompra)</span><span class="v">${fmtNum(tesFundo)} cotas · ${fmtBRL0(tesFundo * e.valorCota)}</span></div>
-    <div class="scenario-row"><span class="k">Caixa de recompra (${state.config.reservaPct}% do patrimônio)</span><span class="v">${fmtBRL0(reserva)}</span></div>
-    <div class="scenario-row"><span class="k">Capacidade de recompra imediata</span><span class="v">${fmtNum(capacidadeRecompra)} cotas</span></div>
-    ${pendentes.length ? `<div class="scenario-row total"><span class="k">Pagamentos de saída pendentes</span><span class="v">${pendentes.length} · ${fmtBRL0(totalPendente)}</span></div>` : `<div class="scenario-row total"><span class="k">Pagamentos de saída pendentes</span><span class="v">nenhum</span></div>`}
-    <p class="hint" style="margin-top:10px;">A <strong>Empresa</strong> detém cotas para bonificar funcionários; o <strong>Fundo</strong> guarda cotas para recomprar quem sai. O caixa de recompra garante o pagamento (em até ${state.config.prazoPagamentoDias} dias) sem depender do lucro do mês. Detalhes na aba <strong>Regras do Fundo</strong>.</p>
+  // Captação por onda
+  document.getElementById('overview-ondas').innerHTML = ORIGENS.map(o => {
+    const grupo = ativos.filter(i => i.origem === o.key);
+    const acoes = grupo.reduce((s, i) => s + i.acoes, 0);
+    const capitado = grupo.reduce((s, i) => s + i.valorPago, 0);
+    const pct = comInv > 0 ? (acoes / comInv) * 100 : 0;
+    const cor = o.key === 'privada' ? '#d9a440' : '#6f9bb0';
+    return `
+      <div class="onda-row">
+        <div class="onda-head">
+          <span class="onda-name"><span class="onda-dot" style="background:${cor};"></span>${o.label}</span>
+          <span class="onda-pct" style="color:${cor};">${pct.toFixed(1)}%</span>
+        </div>
+        <div class="onda-bar-track"><i style="width:${pct}%; background:${cor};"></i></div>
+        <div class="onda-foot">
+          <span>${grupo.length} investidores · ${fmtNum(acoes)} ações</span>
+          <span class="v">${fmtBRL0(capitado)} captados</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Reserva de recompra
+  document.getElementById('overview-reserva').innerHTML = `
+    <div class="scenario-row"><span class="k">Ações em tesouraria</span><span class="v">${fmtNum(state.acoesEmTesouraria)} · ${fmtBRL0(state.acoesEmTesouraria * e.valorAcao)}</span></div>
+    <div class="scenario-row"><span class="k">Ações disponíveis para emissão</span><span class="v">${fmtNum(state.acoesDisponiveisEmissao)}</span></div>
+    <div class="scenario-row"><span class="k">Caixa de reserva (${cfg.reservaPct}% do patrimônio)</span><span class="v">${fmtBRL0(caixaReserva())}</span></div>
+    <div class="scenario-row total"><span class="k">Capacidade de recompra na janela</span><span class="v">${fmtNum(capacidadeRecompra())} ações</span></div>
+    <p class="hint" style="margin-top:10px;">A companhia é o <strong>último degrau</strong> da janela: se sobrar oferta depois dos investidores compradores, ela recompra até o limite do caixa de reserva. As ações recompradas voltam para a tesouraria e financiam novos aportes. Detalhes na aba <strong>Regras do Programa</strong>.</p>
   `;
 
-  renderOverviewAreas(e.valorCota, distrib);
-
   const atividades = [];
-  state.cotistas.forEach(c => c.historico.forEach(h => atividades.push({ ...h, nome: c.nome })));
+  state.investidores.forEach(i => i.historico.forEach(h => atividades.push({ ...h, nome: i.nome })));
   atividades.sort((a, b) => b.mes - a.mes);
-  const filtradas = atividades.filter(a => dentroDoPeriodo(a.mes, state.mesAtual, state.overviewPeriodo));
-  const top = filtradas.slice(0, 12);
+  const top = atividades.filter(a => dentroDoPeriodo(a.mes, state.mesAtual, state.overviewPeriodo)).slice(0, 12);
   document.getElementById('overview-activity').innerHTML = `
     ${periodoChipsHtml('overview', state.overviewPeriodo)}
     ${top.length ? `
@@ -842,257 +850,197 @@ function renderOverview() {
   wirePeriodoChips('overview', (key) => { state.overviewPeriodo = key; persist(); renderOverview(); });
 }
 
-const AREA_COLOR = {
-  'Marketing': '#d9a440',
-  'Operação': '#8aab5e',
-  'Implantação': '#c1502c',
-  'Administrativo': '#6f9bb0',
-  'Comercial': '#a877a8',
-  'Financeiro': '#c98a3e'
-};
-
-function computeAreaStats(valorCotaAtual) {
-  return UNIDADES.map(u => {
-    const membros = state.cotistas.filter(c => c.unidade === u);
-    const lider = membros.find(c => c.papel === 'lider');
-    const totalCotas = membros.reduce((s, c) => s + c.cotas, 0);
-    const totalDividendos = membros.reduce((s, c) => s + c.historico.filter(h => h.tipo === 'dividendo').reduce((ss, h) => ss + h.valor, 0), 0);
-    const tenureMedio = membros.length ? membros.reduce((s, c) => s + (state.mesAtual - c.mesEntrada), 0) / membros.length : 0;
-    return {
-      unidade: u,
-      lider: lider ? lider.nome : '—',
-      nCotistas: membros.length,
-      totalCotas,
-      totalValor: totalCotas * valorCotaAtual,
-      totalDividendos,
-      tenureMedio
-    };
-  });
-}
-
-function renderOverviewAreas(valorCotaAtual, distribTotal) {
-  const areas = computeAreaStats(valorCotaAtual);
-  document.getElementById('overview-areas').innerHTML = areas.map(a => {
-    const pct = distribTotal > 0 ? (a.totalCotas / distribTotal) * 100 : 0;
-    const cor = AREA_COLOR[a.unidade];
-    return `
-      <button class="area-row" data-area="${a.unidade}">
-        <div class="area-row-head">
-          <span class="area-name"><span class="area-dot" style="background:${cor};"></span>${a.unidade}</span>
-          <span class="area-pct" style="color:${cor};">${pct.toFixed(1)}%</span>
-        </div>
-        <div class="area-bar-track"><i style="width:${pct}%; background:${cor};"></i></div>
-        <div class="area-row-foot">
-          <span>líder ${a.lider} · ${a.nCotistas} cotistas · ${fmtNum(a.totalCotas)} cotas</span>
-          <span class="v">${fmtBRL0(a.totalValor)}</span>
-        </div>
-        <div class="area-row-foot">
-          <span>tempo médio de casa: ${a.tenureMedio.toFixed(0)} meses</span>
-          <span class="v">dividendos: ${fmtBRL0(a.totalDividendos)}</span>
-        </div>
-      </button>`;
-  }).join('');
-
-  document.querySelectorAll('#overview-areas [data-area]').forEach(b => {
-    b.addEventListener('click', () => {
-      cotistasFiltro = b.dataset.area;
-      state.activeView = 'cotistas';
-      persist();
-      renderAll();
-      toast(`Filtrando Cotistas por ${b.dataset.area}.`);
-    });
-  });
-}
-
 /* ============================================================
-   CONFIGURAÇÃO
+   PARÂMETROS
    ============================================================ */
 function renderConfig() {
   const c = state.config;
-  document.getElementById('cfg-lucroMensal').value = c.lucroMensal;
-  document.getElementById('cfg-multiplo').value = c.multiplo;
-  document.getElementById('cfg-custoAbertura').value = c.custoAbertura;
-  document.getElementById('cfg-crescimento').value = c.crescimento;
-  document.getElementById('cfg-participacao').value = c.participacaoPct;
-  document.getElementById('cfg-totalCotas').value = c.totalCotas;
-  document.getElementById('cfg-taxaAdm').value = c.taxaAdmPct;
-  document.getElementById('cfg-auditoria').value = c.auditoriaAnual;
-  document.getElementById('cfg-cotasLider').value = c.cotasLiderMes;
-  document.getElementById('cfg-limiteCompra').value = c.limiteCompraMes;
-  document.getElementById('cfg-irrf').value = c.irrfPct;
-  document.getElementById('cfg-reserva').value = c.reservaPct;
-  document.getElementById('cfg-concentracao').value = c.limiteConcentracaoPct;
-  document.getElementById('cfg-prazoPagamento').value = c.prazoPagamentoDias;
-  document.getElementById('cfg-reservaEmpresa').value = state.reservaEmpresa || 0;
-  const poolInfo = document.getElementById('cfg-pools-out');
-  if (poolInfo) poolInfo.textContent = `Distribuídas ${fmtNum(totalDistribuido())} + Reserva Empresa ${fmtNum(state.reservaEmpresa || 0)} + Tesouraria Fundo ${fmtNum(state.tesourariaFundo || 0)} = ${fmtNum(totalDistribuido() + (state.reservaEmpresa||0) + (state.tesourariaFundo||0))} de ${fmtNum(c.totalCotas)} cotas.`;
+  const setV = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  setV('cfg-nomeUnidade', c.nomeUnidade);
+  setV('cfg-lucroMensal', c.lucroMensal);
+  setV('cfg-multiplo', c.multiplo);
+  setV('cfg-crescimento', c.crescimento);
+  setV('cfg-participacao', c.participacaoPct);
+  setV('cfg-totalAcoes', c.totalAcoes);
+  setV('cfg-contabilidade', c.contabilidadeMensal);
+  setV('cfg-juridico', c.juridicoAnual);
+  setV('cfg-irGanho', c.irGanhoPct);
+  setV('cfg-reserva', c.reservaPct);
+  setV('cfg-concentracao', c.limiteConcentracaoPct);
+  setV('cfg-tetoCrowd', c.tetoAporteAnualCrowd);
+  setV('cfg-janelaMeses', c.janelaMeses);
+  setV('cfg-prazoLiquidacao', c.prazoLiquidacaoDias);
 
   const valuationBase = c.lucroMensal * 12 * c.multiplo;
   const participacaoBase = valuationBase * (c.participacaoPct / 100);
-  document.getElementById('cfg-valuation-out').textContent =
-    `Valuation = ${fmtBRL0(c.lucroMensal)}/mês × 12 × ${c.multiplo} = ${fmtBRL0(valuationBase)}.`;
-  document.getElementById('cfg-cota-out').textContent =
-    `Participação do fundo = ${fmtBRL0(participacaoBase)}. Cota inicial = ${fmtBRL(participacaoBase / c.totalCotas)}.`;
-  const custoAnualBase = (participacaoBase * (c.taxaAdmPct / 100)) + c.auditoriaAnual;
-  document.getElementById('cfg-custo-out').textContent =
-    `Custo anual no mês 0 ≈ ${fmtBRL0(custoAnualBase)} (${fmtPct((custoAnualBase / participacaoBase) * 100, 2)} do patrimônio).`;
+  document.getElementById('cfg-resumo').innerHTML = `
+    <div class="scenario-row"><span class="k">Valuation da unidade</span><span class="v">${fmtBRL0(valuationBase)}</span></div>
+    <div class="scenario-row"><span class="k">Participação da companhia</span><span class="v">${fmtBRL0(participacaoBase)}</span></div>
+    <div class="scenario-row"><span class="k">Valor inicial da ação</span><span class="v">${fmtBRL(participacaoBase / c.totalAcoes)}</span></div>
+    <div class="scenario-row"><span class="k">Custo mensal do veículo</span><span class="v">${fmtBRL0(custoMensalVeiculo(c))}</span></div>
+    <div class="scenario-row total"><span class="k">Dividendo por ação</span><span class="v">${fmtBRL(dividendoPorAcao(c.lucroMensal, c))}</span></div>
+  `;
 }
 
 function lerConfigDosInputs() {
+  const num = (id, fallback) => {
+    const el = document.getElementById(id);
+    const v = el ? Number(el.value) : NaN;
+    return isFinite(v) && v !== 0 ? v : (el && Number(el.value) === 0 ? 0 : fallback);
+  };
+  const nomeEl = document.getElementById('cfg-nomeUnidade');
   return {
-    lucroMensal: Number(document.getElementById('cfg-lucroMensal').value) || 0,
-    multiplo: Number(document.getElementById('cfg-multiplo').value) || 0,
-    custoAbertura: Number(document.getElementById('cfg-custoAbertura').value) || 0,
-    crescimento: Number(document.getElementById('cfg-crescimento').value) || 0,
-    participacaoPct: Number(document.getElementById('cfg-participacao').value) || 0,
-    totalCotas: Number(document.getElementById('cfg-totalCotas').value) || 1,
-    taxaAdmPct: Number(document.getElementById('cfg-taxaAdm').value) || 0,
-    auditoriaAnual: Number(document.getElementById('cfg-auditoria').value) || 0,
-    cotasLiderMes: Number(document.getElementById('cfg-cotasLider').value) || 0,
-    limiteCompraMes: Number(document.getElementById('cfg-limiteCompra').value) || 0,
-    irrfPct: Number(document.getElementById('cfg-irrf').value) || 0,
-    reservaPct: Number(document.getElementById('cfg-reserva').value) || 0,
-    limiteConcentracaoPct: Number(document.getElementById('cfg-concentracao').value) || 100,
-    prazoPagamentoDias: Number(document.getElementById('cfg-prazoPagamento').value) || 60
+    ...state.config,
+    nomeUnidade: (nomeEl && nomeEl.value.trim()) || state.config.nomeUnidade,
+    lucroMensal: num('cfg-lucroMensal', state.config.lucroMensal),
+    multiplo: num('cfg-multiplo', state.config.multiplo),
+    crescimento: num('cfg-crescimento', state.config.crescimento),
+    participacaoPct: num('cfg-participacao', state.config.participacaoPct),
+    totalAcoes: Math.max(1, num('cfg-totalAcoes', state.config.totalAcoes)),
+    contabilidadeMensal: num('cfg-contabilidade', state.config.contabilidadeMensal),
+    juridicoAnual: num('cfg-juridico', state.config.juridicoAnual),
+    irGanhoPct: num('cfg-irGanho', state.config.irGanhoPct),
+    reservaPct: num('cfg-reserva', state.config.reservaPct),
+    limiteConcentracaoPct: num('cfg-concentracao', state.config.limiteConcentracaoPct),
+    tetoAporteAnualCrowd: num('cfg-tetoCrowd', state.config.tetoAporteAnualCrowd),
+    janelaMeses: Math.max(1, num('cfg-janelaMeses', state.config.janelaMeses)),
+    prazoLiquidacaoDias: num('cfg-prazoLiquidacao', state.config.prazoLiquidacaoDias)
   };
 }
 
 /* ============================================================
-   COTISTAS (card-list)
+   INVESTIDORES (card-list)
    ============================================================ */
-let cotistasFiltro = 'todos';
+let investidoresFiltro = 'todos';
 
-function cotistaCardHtml(c, valorCotaAtual) {
-  const liderNome = c.liderId ? (getCotista(c.liderId)?.nome || '—') : null;
-  const isLider = c.papel === 'lider';
-  return `
-    <div class="citem ${isLider ? 'lider' : ''}">
-      <div class="citem-top">
-        <div>
-          <span class="citem-name">${isLider ? '★ ' : ''}${c.nome}</span>
-          <div class="citem-meta">${c.unidade}${liderNome ? ' · sob ' + liderNome : ''}</div>
-        </div>
-        <div class="citem-val">
-          ${isLider ? '<span class="badge gold">LÍDER</span>' : '<span class="badge neutral">COLABORADOR(A)</span>'}
-          <span class="big" style="margin-top:5px;">${fmtBRL0(c.cotas * valorCotaAtual)}</span>
-          <span class="small">${fmtNum(c.cotas)} cotas</span>
-        </div>
-      </div>
-      <div class="citem-row"><span>Entrou em</span><span class="v">${fmtMes(c.mesEntrada)} · ${state.mesAtual - c.mesEntrada} meses de casa</span></div>
-      <div class="citem-actions">
-        <button class="btn sm ghost full" data-comprar="${c.id}">Comprar</button>
-        <button class="btn sm ghost full" data-extrato="${c.id}">Ver Extrato</button>
-      </div>
+function renderInvestidores() {
+  const e = estadoNoMes(state.mesAtual);
+  const lista = state.investidores.filter(i => investidoresFiltro === 'todos' || i.origem === investidoresFiltro);
+
+  document.getElementById('investidores-filter').innerHTML = `
+    <div class="unit-filter">
+      <button data-filtro="todos" class="${investidoresFiltro === 'todos' ? 'active' : ''}">Todos</button>
+      ${ORIGENS.map(o => `<button data-filtro="${o.key}" class="${investidoresFiltro === o.key ? 'active' : ''}">${o.label}</button>`).join('')}
     </div>`;
+  document.querySelectorAll('#investidores-filter [data-filtro]').forEach(b =>
+    b.addEventListener('click', () => { investidoresFiltro = b.dataset.filtro; renderInvestidores(); }));
+
+  const ordenados = [...lista].sort((a, b) => b.acoes - a.acoes);
+  document.getElementById('investidores-list').innerHTML = !ordenados.length
+    ? `<div class="empty">Nenhum investidor nesta onda.</div>`
+    : `<div class="clist">${ordenados.map(inv => {
+        const valor = inv.acoes * e.valorAcao;
+        const custoMedio = inv.acoes > 0 ? inv.valorPago / inv.acoes : 0;
+        const naFila = acoesNaFila(inv.id);
+        return `
+        <div class="citem">
+          <div class="citem-top">
+            <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+              <span class="citem-avatar" style="background-image:url('${inv.fotoUrl}');"></span>
+              <div style="min-width:0;">
+                <span class="citem-name">${inv.nome}</span>
+                <div class="citem-meta">${ORIGENS.find(o => o.key === inv.origem).curto} · ${fmtNum(inv.acoes)} ações · custo ${fmtBRL(custoMedio)}${naFila > 0 ? ` · <span style="color:var(--gold-bright);">${fmtNum(naFila)} na fila</span>` : ''}</div>
+              </div>
+            </div>
+            <div class="citem-val"><span class="big">${fmtBRL0(valor)}</span><span class="small">${inv.planoMensal > 0 ? fmtBRL0(inv.planoMensal) + '/mês' : 'sem aporte recorrente'}</span></div>
+          </div>
+          <div class="citem-actions">
+            <button class="btn sm ghost" data-aportar="${inv.id}">Aportar</button>
+            <button class="btn sm ghost" data-ver="${inv.id}">Ver posição</button>
+          </div>
+        </div>`;
+      }).join('')}</div>`;
+
+  document.querySelectorAll('[data-aportar]').forEach(b =>
+    b.addEventListener('click', () => abrirModalAporte(Number(b.dataset.aportar))));
+  document.querySelectorAll('[data-ver]').forEach(b =>
+    b.addEventListener('click', () => {
+      state.portalSelId = Number(b.dataset.ver);
+      state.activeView = 'portal';
+      persist();
+      renderAll();
+    }));
 }
 
-function renderCotistas() {
-  const filterRoot = document.getElementById('cotistas-filter');
-  const opcoes = ['todos', ...UNIDADES, 'lideres'];
-  const labelFor = (o) => o === 'todos' ? 'Todos' : o === 'lideres' ? 'Líderes' : o;
-  filterRoot.innerHTML = opcoes.map(o => `<button data-filtro="${o}" class="${cotistasFiltro === o ? 'active' : ''}">${labelFor(o)}</button>`).join('');
-  filterRoot.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { cotistasFiltro = b.dataset.filtro; renderCotistas(); }));
-
-  let lista = state.cotistas;
-  if (cotistasFiltro === 'lideres') lista = lista.filter(c => c.papel === 'lider');
-  else if (cotistasFiltro !== 'todos') lista = lista.filter(c => c.unidade === cotistasFiltro);
-
-  const valorCotaAtual = estadoNoMes(state.mesAtual).valorCota;
-  const lideres = lista.filter(c => c.papel === 'lider').sort((a, b) => b.cotas - a.cotas);
-  const colaboradores = lista.filter(c => c.papel === 'colaborador').sort((a, b) => b.cotas - a.cotas);
-
-  document.getElementById('cotistas-list').innerHTML = `
-    ${lideres.length ? `
-      <div class="group-label"><span>Líderes de Área</span><span class="count">${lideres.length}</span></div>
-      <div class="clist" style="margin-bottom:20px;">${lideres.map(c => cotistaCardHtml(c, valorCotaAtual)).join('')}</div>
-    ` : ''}
-    ${colaboradores.length ? `
-      <div class="group-label"><span>Colaboradores</span><span class="count">${colaboradores.length}</span></div>
-      <div class="clist">${colaboradores.map(c => cotistaCardHtml(c, valorCotaAtual)).join('')}</div>
-    ` : ''}
-    ${!lideres.length && !colaboradores.length ? `<div class="empty">Nenhum cotista neste filtro.</div>` : ''}
-  `;
-
-  document.querySelectorAll('[data-comprar]').forEach(b => b.addEventListener('click', () => abrirModalCompra(Number(b.dataset.comprar))));
-  document.querySelectorAll('[data-extrato]').forEach(b => b.addEventListener('click', () => {
-    state.portalSelId = Number(b.dataset.extrato);
-    state.activeView = 'portal';
-    persist();
-    renderAll();
-  }));
-}
-
-function abrirModalCompra(cotistaId) {
-  const c = getCotista(cotistaId);
-  const valorCotaAtual = estadoNoMes(state.mesAtual).valorCota;
-  const jaComprado = c.compradoNoMes[state.mesAtual] || 0;
-  const restante = Math.min(state.config.limiteCompraMes - jaComprado, margemCompra(c));
+function abrirModalAporte(investidorId) {
+  const inv = getInvestidor(investidorId);
+  if (!inv) return;
+  const preco = estadoNoMes(state.mesAtual).valorAcao;
   openModal(`
-    <h3>Comprar cotas — ${c.nome}</h3>
-    <p class="hint">Cota atual: ${fmtBRL(valorCotaAtual)} · Limite restante: ${restante} cotas (mês + concentração).</p>
-    <div class="field" style="margin-top:14px;"><label>Valor a investir (R$)</label><input type="number" id="modal-valor-compra" step="50" value="500"></div>
-    <p class="hint" id="modal-compra-preview"></p>
+    <h3>Aporte — ${inv.nome}</h3>
+    <p class="hint">O aporte emite novas ações ao valor patrimonial de hoje (${fmtBRL(preco)}).</p>
+    <div class="field" style="margin-top:12px;"><label>Valor do aporte (R$)</label><input type="number" id="aporte-valor" min="0" step="100" value="1000"></div>
+    <p class="hint" id="aporte-preview"></p>
     <div class="modal-actions">
-      <button class="btn ghost" id="modal-cancelar">Cancelar</button>
-      <button class="btn primary" id="modal-confirmar">Confirmar</button>
+      <button class="btn ghost" id="aporte-cancelar">Cancelar</button>
+      <button class="btn primary" id="aporte-confirmar">Confirmar aporte</button>
     </div>
   `, (root) => {
-    const input = root.querySelector('#modal-valor-compra');
-    const preview = root.querySelector('#modal-compra-preview');
+    const el = root.querySelector('#aporte-valor');
+    const prev = root.querySelector('#aporte-preview');
     const atualiza = () => {
-      const v = Number(input.value) || 0;
-      const qtd = Math.min(Math.floor(v / valorCotaAtual), restante);
-      preview.textContent = `≈ ${qtd} cotas (${fmtBRL(qtd * valorCotaAtual)})`;
+      const v = Math.max(0, Number(el.value) || 0);
+      const margem = margemAporte(inv, preco);
+      const qtd = Math.min(Math.floor(v / preco), margem);
+      const teto = tetoRestanteAno(inv);
+      prev.textContent = `${fmtBRL0(v)} → ${fmtNum(qtd)} ações. Limite: ${fmtNum(margem)} ações` +
+        (teto === Infinity ? ' (oferta privada, sem teto anual).' : ` · resta ${fmtBRL0(teto)} no teto anual do crowdfunding.`);
     };
-    input.addEventListener('input', atualiza);
+    el.addEventListener('input', atualiza);
     atualiza();
-    root.querySelector('#modal-cancelar').addEventListener('click', closeModal);
-    root.querySelector('#modal-confirmar').addEventListener('click', () => { registrarCompra(cotistaId, Number(input.value) || 0); closeModal(); });
+    root.querySelector('#aporte-cancelar').addEventListener('click', closeModal);
+    root.querySelector('#aporte-confirmar').addEventListener('click', () => {
+      if (registrarAporte(inv.id, Number(el.value) || 0) > 0) closeModal();
+    });
   });
 }
 
-function abrirModalNovoCotista() {
-  const lideres = state.cotistas.filter(c => c.papel === 'lider');
+function abrirModalNovoInvestidor() {
+  const preco = estadoNoMes(state.mesAtual).valorAcao;
   openModal(`
-    <h3>Novo Cotista</h3>
-    <div class="field"><label>Nome</label><input type="text" id="modal-nome" placeholder="Nome completo"></div>
-    <div class="field"><label>Unidade</label><select id="modal-unidade">${UNIDADES.map(u => `<option value="${u}">${u}</option>`).join('')}</select></div>
-    <div class="field"><label>Papel</label>
-      <select id="modal-papel"><option value="colaborador">Colaborador</option><option value="lider">Líder</option></select>
+    <h3>Novo investidor</h3>
+    <p class="hint">Novos investidores entram por aporte primário — a companhia emite ações ao valor patrimonial.</p>
+    <div class="field" style="margin-top:12px;"><label>Nome</label><input type="text" id="novo-nome" placeholder="Nome completo"></div>
+    <div class="field"><label>Onda de captação</label>
+      <select id="novo-origem">${ORIGENS.map(o => `<option value="${o.key}">${o.label}</option>`).join('')}</select>
     </div>
-    <div class="field" id="modal-lider-wrap"><label>Líder responsável</label><select id="modal-lider">${lideres.map(l => `<option value="${l.id}">${l.nome}</option>`).join('')}</select></div>
+    <div class="field"><label>Aporte inicial (R$)</label><input type="number" id="novo-valor" min="0" step="500" value="5000"></div>
+    <p class="hint" id="novo-preview"></p>
     <div class="modal-actions">
-      <button class="btn ghost" id="modal-cancelar">Cancelar</button>
-      <button class="btn primary" id="modal-confirmar">Adicionar</button>
+      <button class="btn ghost" id="novo-cancelar">Cancelar</button>
+      <button class="btn primary" id="novo-confirmar">Cadastrar e aportar</button>
     </div>
   `, (root) => {
-    const papelSel = root.querySelector('#modal-papel');
-    const liderWrap = root.querySelector('#modal-lider-wrap');
-    papelSel.addEventListener('change', () => { liderWrap.style.display = papelSel.value === 'lider' ? 'none' : 'block'; });
-    root.querySelector('#modal-cancelar').addEventListener('click', closeModal);
-    root.querySelector('#modal-confirmar').addEventListener('click', () => {
-      const nome = root.querySelector('#modal-nome').value.trim();
-      if (!nome) { toast('Informe um nome.'); return; }
-      const papel = papelSel.value;
-      const unidade = root.querySelector('#modal-unidade').value;
-      const liderId = papel === 'colaborador' ? Number(root.querySelector('#modal-lider').value) : null;
-      const primeiroNome = nome.split(' ')[0];
-      const idxConhecido = NOMES_BASE.findIndex(n => n.toLowerCase() === primeiroNome.toLowerCase());
-      const genero = idxConhecido >= 0 ? GENEROS_BASE[idxConhecido] : (/a$/i.test(primeiroNome) ? 'F' : 'M');
-      const novoId = state.nextId++;
-      state.cotistas.push({
-        id: novoId, nome, unidade, papel, liderId,
-        vinculo: 'CLT',
-        mesEntrada: state.mesAtual, cotas: 0, cotasBonificadas: 0, cotasCompradas: 0,
-        valorPagoCompras: 0,
-        planoMensal: 0, reinvestirDividendos: false, creditoReinvestimento: 0,
-        fotoUrl: `https://randomuser.me/api/portraits/${genero === 'F' ? 'women' : 'men'}/${novoId % 15}.jpg`,
-        compradoNoMes: {}, historico: []
+    const origemEl = root.querySelector('#novo-origem');
+    const valorEl = root.querySelector('#novo-valor');
+    const prev = root.querySelector('#novo-preview');
+    const atualiza = () => {
+      const v = Math.max(0, Number(valorEl.value) || 0);
+      const teto = origemEl.value === 'crowdfunding' ? state.config.tetoAporteAnualCrowd : Infinity;
+      const efetivo = Math.min(v, teto);
+      prev.textContent = `${fmtBRL0(efetivo)} → ${fmtNum(Math.floor(efetivo / preco))} ações a ${fmtBRL(preco)}` +
+        (v > teto ? ` · limitado ao teto anual de ${fmtBRL0(teto)} do crowdfunding.` : '.');
+    };
+    origemEl.addEventListener('change', atualiza);
+    valorEl.addEventListener('input', atualiza);
+    atualiza();
+    root.querySelector('#novo-cancelar').addEventListener('click', closeModal);
+    root.querySelector('#novo-confirmar').addEventListener('click', () => {
+      const nome = root.querySelector('#novo-nome').value.trim();
+      if (!nome) { toast('Informe o nome do investidor.'); return; }
+      const origem = origemEl.value;
+      const id = state.nextId++;
+      const genero = generoInvestidor(id);
+      state.investidores.push({
+        id, nome, genero, origem, mesEntrada: state.mesAtual,
+        fotoUrl: `https://randomuser.me/api/portraits/${genero === 'F' ? 'women' : 'men'}/${id % 15}.jpg`,
+        acoes: 0, valorPago: 0, aportadoNoAno: {},
+        planoMensal: 0, reinvestir: false, creditoReinvestimento: 0,
+        historico: []
       });
-      persist();
+      const qtd = registrarAporte(id, Number(valorEl.value) || 0);
+      if (qtd <= 0) { toast(`${nome} cadastrado, mas sem ações — revise o valor do aporte.`); persist(); renderAll(); }
       closeModal();
-      toast(`${nome} adicionado(a) com sucesso.`);
-      renderAll();
     });
   });
 }
@@ -1101,460 +1049,388 @@ function abrirModalNovoCotista() {
    CICLO MENSAL
    ============================================================ */
 function renderCiclo() {
-  const labels = ['Avaliar & Distribuir', 'Comitê Aprova', 'Comunicado', 'Dividendos & Fechamento'];
+  const labels = ['Resultado da Unidade', 'Informe aos Acionistas', 'Distribuição & Fechamento'];
   document.getElementById('ciclo-stepper').innerHTML = `
-    <div class="dots">${[1, 2, 3, 4].map(n => `<span class="${n < state.ciclo.step ? 'done' : n === state.ciclo.step ? 'now' : ''}"></span>`).join('')}</div>
-    <div class="txt">Passo ${state.ciclo.step}/4 — <b>${labels[state.ciclo.step - 1]}</b> · ${fmtMes(state.mesAtual)}</div>
+    <div class="dots">${[1, 2, 3].map(n => `<span class="${n < state.ciclo.step ? 'done' : n === state.ciclo.step ? 'now' : ''}"></span>`).join('')}</div>
+    <div class="txt">Passo ${state.ciclo.step}/3 — <b>${labels[state.ciclo.step - 1]}</b> · ${fmtMes(state.mesAtual)}</div>
   `;
   const body = document.getElementById('ciclo-body');
   if (state.ciclo.step === 1) renderCicloStep1(body);
   else if (state.ciclo.step === 2) renderCicloStep2(body);
-  else if (state.ciclo.step === 3) renderCicloStep3(body);
-  else renderCicloStep4(body);
-}
-
-function getAlocLider(liderId) {
-  if (!state.ciclo.alocacoes[liderId]) state.ciclo.alocacoes[liderId] = {};
-  return state.ciclo.alocacoes[liderId];
-}
-function totalAlocLider(liderId) {
-  const aloc = getAlocLider(liderId);
-  return Object.values(aloc).reduce((s, v) => s + (v || 0), 0);
-}
-
-function totalMoneyAlocLider(liderId, valorCota) {
-  return totalAlocLider(liderId) * valorCota;
+  else renderCicloStep3(body);
 }
 
 function renderCicloStep1(body) {
-  const lideres = state.cotistas.filter(c => c.papel === 'lider');
-  const valorCotaAtual = estadoNoMes(state.mesAtual).valorCota;
-  body.innerHTML = `
-    <p class="hint" style="margin-bottom:16px;">Cada líder recebe ${state.config.cotasLiderMes} cotas/mês para distribuir conforme performance — o valor em reais aparece conforme você seleciona.</p>
-    ${lideres.map(lider => {
-      const colabs = colaboradoresDe(lider.id);
-      const aloc = getAlocLider(lider.id);
-      return `
-      <div class="lider-block" data-lider="${lider.id}">
-        <div class="head">
-          <div><div class="name">${lider.nome}</div><span class="unidade">${lider.unidade}</span></div>
-          <span class="badge gold">${state.config.cotasLiderMes}/MÊS</span>
-        </div>
-        ${colabs.map(co => {
-          const qtd = aloc[co.id] || 0;
-          return `
-          <div class="qty-row">
-            <div class="qty-row-main">
-              <span class="who">${co.nome}</span>
-              <div class="qty-stepper">
-                <button data-step="-1" data-lider="${lider.id}" data-colab="${co.id}">−</button>
-                <span class="qv" data-qty="${lider.id}-${co.id}">${qtd}</span>
-                <button data-step="1" data-lider="${lider.id}" data-colab="${co.id}">+</button>
-              </div>
-            </div>
-            <div class="qty-money-line ${qtd > 0 ? 'has-value' : ''}" data-money="${lider.id}-${co.id}">${qtd > 0 ? '≈ ' + fmtBRL(qtd * valorCotaAtual) : 'sem cotas selecionadas'}</div>
-          </div>`;
-        }).join('')}
-        <div class="alloc-total">
-          <span>Distribuídas</span>
-          <span data-total-lider="${lider.id}" class="${totalAlocLider(lider.id) > state.config.cotasLiderMes ? 'bad' : 'ok'}">${totalAlocLider(lider.id)} / ${state.config.cotasLiderMes}</span>
-        </div>
-        <div class="alloc-total money">
-          <span>Equivalente em R$</span>
-          <span data-total-money-lider="${lider.id}" class="ok">${fmtBRL(totalMoneyAlocLider(lider.id, valorCotaAtual))}</span>
-        </div>
-      </div>`;
-    }).join('')}
-    <button class="btn primary full" id="btn-step1-next">Avançar para Aprovação →</button>
-  `;
-
-  body.querySelectorAll('[data-step]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const liderId = Number(btn.dataset.lider), colabId = Number(btn.dataset.colab), delta = Number(btn.dataset.step);
-      const aloc = getAlocLider(liderId);
-      const atual = aloc[colabId] || 0;
-      const totalAtual = totalAlocLider(liderId);
-      let novo = atual + delta;
-      if (novo < 0) novo = 0;
-      if (delta > 0 && totalAtual >= state.config.cotasLiderMes) return;
-      aloc[colabId] = novo;
-      body.querySelector(`[data-qty="${liderId}-${colabId}"]`).textContent = novo;
-
-      const moneyEl = body.querySelector(`[data-money="${liderId}-${colabId}"]`);
-      moneyEl.textContent = novo > 0 ? `≈ ${fmtBRL(novo * valorCotaAtual)}` : 'sem cotas selecionadas';
-      moneyEl.classList.toggle('has-value', novo > 0);
-
-      const totalEl = body.querySelector(`[data-total-lider="${liderId}"]`);
-      const total = totalAlocLider(liderId);
-      totalEl.textContent = `${total} / ${state.config.cotasLiderMes}`;
-      totalEl.className = total > state.config.cotasLiderMes ? 'bad' : 'ok';
-
-      const totalMoneyEl = body.querySelector(`[data-total-money-lider="${liderId}"]`);
-      totalMoneyEl.textContent = fmtBRL(totalMoneyAlocLider(liderId, valorCotaAtual));
-
-      persist();
-    });
-  });
-
-  document.getElementById('btn-step1-next').addEventListener('click', () => {
-    const algumExcedeu = lideres.some(l => totalAlocLider(l.id) > state.config.cotasLiderMes);
-    if (algumExcedeu) { toast('Algum líder excedeu o limite de cotas do mês.'); return; }
-    state.ciclo.step = 2;
-    persist();
-    renderCiclo();
-  });
-}
-
-function renderCicloStep2(body) {
-  const lideres = state.cotistas.filter(c => c.papel === 'lider');
+  const cfg = state.config;
   body.innerHTML = `
     <div class="m-card">
-      <h3 style="margin-bottom:12px;">Resumo para o Comitê</h3>
-      <div class="clist">
-        ${lideres.map(l => `
-          <div class="citem"><div class="citem-top">
-            <div><span class="citem-name">${l.nome}</span><div class="citem-meta">${l.unidade}</div></div>
-            <div class="citem-val"><span class="big">${totalAlocLider(l.id)} cotas</span></div>
-          </div></div>`).join('')}
-      </div>
-      <div class="scenario-row total"><span class="k">Total geral</span><span class="v">${lideres.reduce((s, l) => s + totalAlocLider(l.id), 0)} cotas</span></div>
-    </div>
-    <button class="btn ghost full" id="btn-step2-back" style="margin-bottom:10px;">← Voltar e Ajustar</button>
-    <button class="btn primary full" id="btn-step2-next">Comitê Aprova ✓</button>
-  `;
-  document.getElementById('btn-step2-back').addEventListener('click', () => { state.ciclo.step = 1; persist(); renderCiclo(); });
-  document.getElementById('btn-step2-next').addEventListener('click', () => {
-    state.ciclo.aprovado = true;
-    state.ciclo.step = 3;
-    persist();
-    renderCiclo();
-    toast('Distribuição aprovada pelo Comitê.');
-  });
-}
-
-function gerarTextoComunicado() {
-  const lideres = state.cotistas.filter(c => c.papel === 'lider');
-  let linhas = [];
-  lideres.forEach(l => colaboradoresDe(l.id).forEach(co => {
-    const qtd = (getAlocLider(l.id)[co.id]) || 0;
-    if (qtd > 0) linhas.push(`- ${co.nome}: ${qtd} cotas (${fmtBRL0(qtd * estadoNoMes(state.mesAtual).valorCota)})`);
-  }));
-  return `COMUNICADO — FUNDO DE INVESTIMENTO — ${fmtMes(state.mesAtual).toUpperCase()}
-
-Prezados Colaboradores,
-
-Segue distribuição de cotas deste mês:
-
-Bonificação por Performance:
-${linhas.length ? linhas.join('\n') : '- Nenhuma cota distribuída neste mês'}
-
-Próximas Etapas:
-- ${fmtMes(state.mesAtual + 1)}: próxima distribuição
-- Relatório trimestral de performance do fundo
-
-Dúvidas? Contate o RH.`;
-}
-
-function renderCicloStep3(body) {
-  const texto = gerarTextoComunicado();
-  body.innerHTML = `
-    <div class="comunicado">${texto.replace('COMUNICADO', '<span class="h">COMUNICADO</span>')}</div>
-    <button class="btn ghost full" id="btn-copiar" style="margin-bottom:10px;">Copiar Texto</button>
-    <button class="btn ghost full" id="btn-step3-back" style="margin-bottom:10px;">← Voltar</button>
-    <button class="btn primary full" id="btn-step3-next">Avançar para Dividendos →</button>
-  `;
-  document.getElementById('btn-step3-back').addEventListener('click', () => { state.ciclo.step = 2; persist(); renderCiclo(); });
-  document.getElementById('btn-step3-next').addEventListener('click', () => { state.ciclo.step = 4; persist(); renderCiclo(); });
-  document.getElementById('btn-copiar').addEventListener('click', () => {
-    navigator.clipboard?.writeText(texto).then(() => toast('Comunicado copiado.'), () => toast('Selecione o texto manualmente para copiar.'));
-  });
-}
-
-function renderCicloStep4(body) {
-  const e = estadoNoMes(state.mesAtual);
-  const lucroMes = state.ciclo.lucroMes;
-  const comPlano = state.cotistas.filter(c => c.planoMensal > 0);
-  const somaPlanos = comPlano.reduce((s, c) => s + c.planoMensal, 0);
-  const comDrip = state.cotistas.filter(c => c.reinvestirDividendos && c.cotas > 0);
-  body.innerHTML = `
-    <div class="m-card">
-      <h3>Lucro da Academia neste Mês</h3>
-      <div class="field" style="margin-top:12px;"><label>Lucro (R$)</label><input type="number" id="input-lucro-mes" step="2000" value="${lucroMes}"></div>
-      <p class="hint" id="dividendo-formula"></p>
+      <h3>Resultado da ${cfg.nomeUnidade} neste mês</h3>
+      <p class="hint" style="margin-top:6px;">O lucro da unidade é a origem de tudo: a companhia recebe a fatia dela e distribui aos acionistas.</p>
+      <div class="field" style="margin-top:12px;"><label>Lucro do mês (R$)</label><input type="number" id="input-lucro-mes" step="2000" value="${state.ciclo.lucroMes}"></div>
     </div>
     <div class="m-card">
-      <h3 style="margin-bottom:10px;">Pequenos Investidores no Fechamento</h3>
-      <div class="scenario-row"><span class="k">Planos de folha ativos</span><span class="v">${comPlano.length} cotistas · ${fmtBRL0(somaPlanos)}/mês</span></div>
-      <div class="scenario-row"><span class="k">Reinvestimento automático ligado</span><span class="v">${comDrip.length} cotistas</span></div>
-      <p class="hint" style="margin-top:10px;">Ao fechar o mês, os planos compram cotas via folha e os dividendos de quem tem reinvestimento automático viram novas cotas.</p>
+      <h3 style="margin-bottom:10px;">Apuração</h3>
+      <div class="scenario-row"><span class="k">Companhia recebe (${cfg.participacaoPct}%)</span><span class="v" id="out-recebe"></span></div>
+      <div class="scenario-row"><span class="k">Custos do veículo</span><span class="v" id="out-custo"></span></div>
+      <div class="scenario-row"><span class="k">Disponível para distribuir</span><span class="v" id="out-liquido"></span></div>
+      <div class="scenario-row total"><span class="k">Dividendo por ação</span><span class="v" id="out-divAcao"></span></div>
+      <p class="hint" id="dividendo-formula" style="margin-top:10px;"></p>
     </div>
-    <div class="m-card">
-      <h3 style="margin-bottom:10px;">Resultado do Mês</h3>
-      <div class="scenario-row"><span class="k">Fundo recebe (${state.config.participacaoPct}%)</span><span class="v" id="out-fundoRecebe"></span></div>
-      <div class="scenario-row"><span class="k">Custos do mês</span><span class="v" id="out-custo"></span></div>
-      <div class="scenario-row"><span class="k">Lucro líquido</span><span class="v" id="out-liquido"></span></div>
-      <div class="scenario-row total"><span class="k">Dividendo por cota</span><span class="v" id="out-divCota"></span></div>
-    </div>
-    <div id="tabela-dividendos"></div>
-    <button class="btn ghost full" id="btn-step4-back" style="margin:14px 0 10px;">← Voltar ao Comunicado</button>
-    <button class="btn primary full" id="btn-fechar-mes">Fechar ${fmtMes(state.mesAtual)} ✓</button>
+    <button class="btn primary full" id="btn-step1-next">Avançar para o Informe →</button>
   `;
-
   const atualiza = () => {
     const lucro = Number(document.getElementById('input-lucro-mes').value) || 0;
     state.ciclo.lucroMes = lucro;
-    const fr = lucro * (state.config.participacaoPct / 100);
-    const cm = e.patrimonioFundo * (state.config.taxaAdmPct / 100 / 12) + state.config.auditoriaAnual / 12;
-    const lq = fr - cm;
-    const dpc = lq / state.config.totalCotas;
-    document.getElementById('out-fundoRecebe').textContent = fmtBRL(fr);
-    document.getElementById('out-custo').textContent = fmtBRL(cm);
-    document.getElementById('out-liquido').textContent = fmtBRL(lq);
-    document.getElementById('out-divCota').textContent = fmtBRL(dpc);
+    const recebe = lucro * (cfg.participacaoPct / 100);
+    const custo = custoMensalVeiculo(cfg);
+    const liquido = recebe - custo;
+    const porAcao = dividendoPorAcao(lucro, cfg);
+    document.getElementById('out-recebe').textContent = fmtBRL(recebe);
+    document.getElementById('out-custo').textContent = fmtBRL(custo);
+    document.getElementById('out-liquido').textContent = fmtBRL(liquido);
+    document.getElementById('out-divAcao').textContent = fmtBRL(porAcao);
     document.getElementById('dividendo-formula').textContent =
-      `${fmtBRL0(lucro)} × ${state.config.participacaoPct}% − ${fmtBRL0(cm)} custos = ${fmtBRL0(lq)} ÷ ${fmtNum(state.config.totalCotas)} cotas`;
-
-    const linhas = state.cotistas.map(c => {
-      const bonus = (c.papel === 'colaborador' && c.liderId) ? (getAlocLider(c.liderId)[c.id] || 0) : 0;
-      const saldoFinal = c.cotas + bonus;
-      return { c, bonus, saldoFinal, dividendo: saldoFinal * dpc };
-    }).sort((a, b) => b.saldoFinal - a.saldoFinal);
-
-    document.getElementById('tabela-dividendos').innerHTML = `
-      <div class="m-card" style="padding-bottom:6px;">
-        <h3 style="margin-bottom:10px;">Por Cotista</h3>
-        <div class="clist">
-          ${linhas.map(l => `
-            <div class="citem"><div class="citem-top">
-              <div><span class="citem-name">${l.c.nome}</span><div class="citem-meta">${l.bonus > 0 ? '+' + l.bonus + ' cotas de bônus' : 'sem bônus este mês'}</div></div>
-              <div class="citem-val"><span class="big">${fmtBRL(l.dividendo)}</span><span class="small">${fmtNum(l.saldoFinal)} cotas</span></div>
-            </div></div>`).join('')}
-        </div>
-      </div>`;
+      `${fmtBRL0(lucro)} × ${cfg.participacaoPct}% − ${fmtBRL0(custo)} de custos = ${fmtBRL0(liquido)} ÷ ${fmtNum(cfg.totalAcoes)} ações`;
     persist();
   };
   document.getElementById('input-lucro-mes').addEventListener('input', atualiza);
   atualiza();
+  document.getElementById('btn-step1-next').addEventListener('click', () => { state.ciclo.step = 2; persist(); renderCiclo(); });
+}
 
-  document.getElementById('btn-step4-back').addEventListener('click', () => { state.ciclo.step = 3; persist(); renderCiclo(); });
+function gerarTextoComunicado() {
+  const cfg = state.config;
+  const lucro = state.ciclo.lucroMes;
+  const porAcao = dividendoPorAcao(lucro, cfg);
+  const totalAosAcionistas = acoesComInvestidores() * porAcao;
+  const proxima = proximaJanelaMes();
+  return `INFORME AOS ACIONISTAS — ${fmtMes(state.mesAtual).toUpperCase()}
+
+Prezados acionistas,
+
+Resultado do período:
+- Lucro da ${cfg.nomeUnidade}: ${fmtBRL0(lucro)}
+- Participação da companhia (${cfg.participacaoPct}%): ${fmtBRL0(lucro * (cfg.participacaoPct / 100))}
+- Custos do veículo: ${fmtBRL0(custoMensalVeiculo(cfg))}
+
+Distribuição:
+- Dividendo por ação: ${fmtBRL(porAcao)}
+- Total distribuído aos acionistas: ${fmtBRL0(totalAosAcionistas)}
+- Valor patrimonial da ação: ${fmtBRL(estadoNoMes(state.mesAtual).valorAcao)}
+
+Liquidez:
+- Próxima Janela de Liquidez: ${fmtMes(proxima)}
+- Pedidos de venda na fila: ${fmtNum(ofertaTotal())} ações
+
+A Diretoria.`;
+}
+
+function renderCicloStep2(body) {
+  const texto = gerarTextoComunicado();
+  body.innerHTML = `
+    <div class="comunicado">${texto.replace('INFORME AOS ACIONISTAS', '<span class="h">INFORME AOS ACIONISTAS</span>')}</div>
+    <button class="btn ghost full" id="btn-copiar" style="margin-bottom:10px;">Copiar Texto</button>
+    <button class="btn ghost full" id="btn-step2-back" style="margin-bottom:10px;">← Voltar</button>
+    <button class="btn primary full" id="btn-step2-next">Avançar para Distribuição →</button>
+  `;
+  document.getElementById('btn-step2-back').addEventListener('click', () => { state.ciclo.step = 1; persist(); renderCiclo(); });
+  document.getElementById('btn-step2-next').addEventListener('click', () => { state.ciclo.step = 3; persist(); renderCiclo(); });
+  document.getElementById('btn-copiar').addEventListener('click', () => {
+    navigator.clipboard?.writeText(texto).then(() => toast('Informe copiado.'), () => toast('Selecione o texto manualmente para copiar.'));
+  });
+}
+
+function renderCicloStep3(body) {
+  const cfg = state.config;
+  const lucro = state.ciclo.lucroMes;
+  const porAcao = dividendoPorAcao(lucro, cfg);
+  const comPlano = state.investidores.filter(i => i.planoMensal > 0);
+  const somaPlanos = comPlano.reduce((s, i) => s + i.planoMensal, 0);
+  const comDrip = state.investidores.filter(i => i.reinvestir && i.acoes > 0);
+  const linhas = investidoresAtivos()
+    .map(i => ({ i, dividendo: i.acoes * porAcao }))
+    .sort((a, b) => b.dividendo - a.dividendo);
+
+  body.innerHTML = `
+    <div class="m-card">
+      <h3 style="margin-bottom:10px;">O que acontece ao fechar o mês</h3>
+      <div class="scenario-row"><span class="k">Aportes recorrentes ativos</span><span class="v">${comPlano.length} investidores · ${fmtBRL0(somaPlanos)}/mês</span></div>
+      <div class="scenario-row"><span class="k">Reinvestimento automático ligado</span><span class="v">${comDrip.length} investidores</span></div>
+      <div class="scenario-row total"><span class="k">Total de dividendos do mês</span><span class="v">${fmtBRL(acoesComInvestidores() * porAcao)}</span></div>
+      <p class="hint" style="margin-top:10px;">Os aportes recorrentes emitem novas ações ao valor patrimonial, respeitando o teto anual de quem entrou pelo crowdfunding. Quem tem reinvestimento ligado converte o dividendo em ações.</p>
+    </div>
+    <div class="m-card" style="padding-bottom:6px;">
+      <h3 style="margin-bottom:10px;">Dividendo por investidor</h3>
+      <div class="clist">
+        ${linhas.slice(0, 30).map(l => `
+          <div class="citem"><div class="citem-top">
+            <div><span class="citem-name">${l.i.nome}</span><div class="citem-meta">${badgeOrigem(l.i.origem)}</div></div>
+            <div class="citem-val"><span class="big">${fmtBRL(l.dividendo)}</span><span class="small">${fmtNum(l.i.acoes)} ações</span></div>
+          </div></div>`).join('')}
+      </div>
+      ${linhas.length > 30 ? `<p class="hint" style="margin:8px 0 10px;">Mostrando os 30 maiores de ${linhas.length} investidores.</p>` : ''}
+    </div>
+    <button class="btn ghost full" id="btn-step3-back" style="margin:14px 0 10px;">← Voltar ao Informe</button>
+    <button class="btn primary full" id="btn-fechar-mes">Fechar ${fmtMes(state.mesAtual)} ✓</button>
+  `;
+  document.getElementById('btn-step3-back').addEventListener('click', () => { state.ciclo.step = 2; persist(); renderCiclo(); });
   document.getElementById('btn-fechar-mes').addEventListener('click', fecharMes);
 }
 
 function fecharMes() {
+  const cfg = state.config;
   const lucro = state.ciclo.lucroMes;
-  const eAntes = estadoNoMes(state.mesAtual);
-  const valorCota = eAntes.valorCota;
-  const fr = lucro * (state.config.participacaoPct / 100);
-  const cm = eAntes.patrimonioFundo * (state.config.taxaAdmPct / 100 / 12) + state.config.auditoriaAnual / 12;
-  const dpc = (fr - cm) / state.config.totalCotas;
+  const valorAcao = estadoNoMes(state.mesAtual).valorAcao;
+  const divAcao = dividendoPorAcao(lucro, cfg);
 
-  let totCotasFolha = 0, totCotasReinvestidas = 0;
+  let totAportadas = 0, totReinvestidas = 0, totDividendos = 0;
 
-  state.cotistas.forEach(c => {
-    // 1. Bonificação aprovada pelos líderes — cotas saem da Reserva da Empresa
-    let bonus = (c.papel === 'colaborador' && c.liderId) ? (getAlocLider(c.liderId)[c.id] || 0) : 0;
-    if (bonus > 0) {
-      bonus = concederBonificacao(bonus);
-      if (bonus > 0) {
-        c.cotas += bonus;
-        c.cotasBonificadas += bonus;
-        c.historico.push({ mes: state.mesAtual, tipo: 'bonificacao', qtd: bonus, valor: 0, desc: 'Bonificação por performance (Reserva da Empresa)' });
-      }
+  state.investidores.forEach(inv => {
+    // 1. Aporte recorrente do investidor (emissão primária, respeitando teto e concentração)
+    if (inv.planoMensal > 0) {
+      const qtd = registrarAporte(inv.id, inv.planoMensal, true);
+      totAportadas += qtd;
     }
 
-    // 2. Plano do investidor: compra automática via desconto em folha (emissão dos pools)
-    if (c.planoMensal > 0) {
-      const jaComprado = c.compradoNoMes[state.mesAtual] || 0;
-      let qtd = Math.floor(c.planoMensal / valorCota);
-      qtd = Math.min(qtd, state.config.limiteCompraMes - jaComprado, margemCompra(c));
-      qtd = emitirCotas(qtd);
-      if (qtd > 0) {
-        const custo = qtd * valorCota;
-        c.cotas += qtd;
-        c.cotasCompradas += qtd;
-        c.valorPagoCompras += custo;
-        c.compradoNoMes[state.mesAtual] = jaComprado + qtd;
-        c.historico.push({ mes: state.mesAtual, tipo: 'compra', qtd, valor: custo, desc: 'Investimento via folha de pagamento' });
-        totCotasFolha += qtd;
-      }
-    }
+    // 2. Dividendo do mês sobre a posição já atualizada
+    if (inv.acoes > 0 && divAcao > 0) {
+      const dividendo = inv.acoes * divAcao;
+      totDividendos += dividendo;
+      inv.historico.push({ mes: state.mesAtual, tipo: 'dividendo', qtd: null, valor: dividendo, desc: 'Dividendo mensal' });
 
-    // 3. Dividendo do mês (sobre o saldo já atualizado)
-    if (c.cotas > 0 && dpc > 0) {
-      const dividendo = c.cotas * dpc;
-      c.historico.push({ mes: state.mesAtual, tipo: 'dividendo', qtd: null, valor: dividendo, desc: 'Dividendo mensal' });
-
-      // 4. Reinvestimento automático: o dividendo acumula como crédito e,
-      // quando o crédito compra ao menos 1 cota inteira, converte.
-      if (c.reinvestirDividendos) {
-        c.creditoReinvestimento = (c.creditoReinvestimento || 0) + dividendo;
-        let qtdR = Math.floor(c.creditoReinvestimento / valorCota);
-        qtdR = Math.min(qtdR, margemCompra(c));
-        qtdR = emitirCotas(qtdR);
+      // 3. Reinvestimento automático: acumula crédito e converte quando dá 1 ação inteira
+      if (inv.reinvestir) {
+        inv.creditoReinvestimento = (inv.creditoReinvestimento || 0) + dividendo;
+        let qtdR = Math.min(Math.floor(inv.creditoReinvestimento / valorAcao), margemAporte(inv, valorAcao));
+        qtdR = emitirAcoes(Math.max(0, qtdR));
         if (qtdR > 0) {
-          const custoR = qtdR * valorCota;
-          c.cotas += qtdR;
-          c.cotasCompradas += qtdR;
-          c.valorPagoCompras += custoR;
-          c.creditoReinvestimento -= custoR;
-          c.historico.push({ mes: state.mesAtual, tipo: 'reinvestimento', qtd: qtdR, valor: custoR, desc: 'Reinvestimento automático de dividendos' });
-          totCotasReinvestidas += qtdR;
+          const custoR = qtdR * valorAcao;
+          const ano = anoDoMes(state.mesAtual);
+          inv.acoes += qtdR;
+          inv.valorPago += custoR;
+          inv.aportadoNoAno[ano] = (inv.aportadoNoAno[ano] || 0) + custoR;
+          inv.creditoReinvestimento -= custoR;
+          inv.historico.push({ mes: state.mesAtual, tipo: 'reinvestimento', qtd: qtdR, valor: custoR, desc: 'Reinvestimento automático de dividendos' });
+          totReinvestidas += qtdR;
         }
       }
     }
   });
 
   state.mesAtual += 1;
-
-  // Dinâmica da cotação de mercado no novo mês:
-  // NAV é a gravidade (reversão à média) + pressão de oferta/demanda, dentro de banda ±20%.
-  const navNovo = estadoNoMes(state.mesAtual).valorCota;
-  const oferta = ofertaMercado();
-  const demanda = totCotasFolha + totCotasReinvestidas; // pressão compradora estrutural do mês
-  const baseDist = Math.max(1, totalDistribuido());
-  const pressao = Math.max(-0.1, Math.min(0.1, (demanda - oferta) / baseDist)); // normalizada e limitada
-  let p = state.precoMercado + (navNovo - state.precoMercado) * 0.30; // reversão ao NAV
-  p = p * (1 + 0.6 * pressao);                                        // oferta x demanda
-  p = Math.max(navNovo * 0.80, Math.min(navNovo * 1.20, p));          // banda ±20%
-  state.precoMercado = Math.round(p * 100) / 100;
-  state.cotacaoHist.push({ mes: state.mesAtual, nav: navNovo, preco: state.precoMercado });
-  if (state.cotacaoHist.length > 24) state.cotacaoHist = state.cotacaoHist.slice(-24);
-
-  state.ciclo = { step: 1, alocacoes: {}, lucroMes: state.config.lucroMensal, aprovado: false };
+  state.ciclo = { step: 1, lucroMes: cfg.lucroMensal };
   persist();
+
   const extras = [];
-  if (totCotasFolha > 0) extras.push(`${totCotasFolha} cotas via folha`);
-  if (totCotasReinvestidas > 0) extras.push(`${totCotasReinvestidas} reinvestidas`);
-  toast(`${fmtMes(state.mesAtual - 1)} fechado. Dividendo de ${fmtBRL(dpc)}/cota${extras.length ? ' · ' + extras.join(' · ') : ''}.`);
-  renderAll();
-}
-
-/* Executa o desligamento: recompra as cotas a mercado seguindo a cascata de
-   prioridade e devolve ao pool do absorvedor. Pagamento em até prazoPagamentoDias.
-   absorvedor: 'empresa' (Reserva da Empresa) ou 'fundo' (Tesouraria do Fundo). */
-function processarSaida(cotistaId, absorvedor = 'empresa') {
-  const c = getCotista(cotistaId);
-  if (!c) return;
-  const r = calcSaidaScenario(c);
-  const cotasRecompradas = c.cotas;
-
-  // devolve as cotas ao pool de quem recomprou
-  devolverCotas(cotasRecompradas, absorvedor);
-
-  // registra a obrigação de pagamento (prazo em meses ≈ dias/30)
-  const prazoMeses = Math.max(1, Math.round(state.config.prazoPagamentoDias / 30));
-  state.pagamentosPendentes.push({
-    id: (state.nextListingId = (state.nextListingId || 1010) + 1),
-    cotistaNome: c.nome,
-    cotas: cotasRecompradas,
-    valorLiquido: Math.round(r.valorLiquido),
-    absorvedor,
-    mesSaida: state.mesAtual,
-    mesLimite: state.mesAtual + prazoMeses,
-    status: 'pendente'
-  });
-
-  state.cotistas = state.cotistas.filter(x => x.id !== c.id);
-  if (state.portalSelId === c.id) state.portalSelId = state.cotistas[0]?.id;
-  if (state.saidaSelId === c.id) state.saidaSelId = state.cotistas[0]?.id;
-  // remove anúncios do vendedor que saiu
-  state.mercado.forEach(l => { if (l.vendedorId === c.id && l.status === 'ativo') l.status = 'cancelado'; });
-  persist();
-  const quem = absorvedor === 'empresa' ? 'Empresa' : 'Fundo';
-  toast(`${c.nome} desligado(a). ${fmtNum(cotasRecompradas)} cotas recompradas pela ${quem} por ${fmtBRL0(r.valorLiquido)} — pagamento em até ${state.config.prazoPagamentoDias} dias.`);
+  if (totAportadas > 0) extras.push(`${totAportadas} ações por aporte recorrente`);
+  if (totReinvestidas > 0) extras.push(`${totReinvestidas} reinvestidas`);
+  const abriu = janelaAberta() ? ' · Janela de Liquidez aberta' : '';
+  toast(`${fmtMes(state.mesAtual - 1)} fechado. ${fmtBRL(totDividendos)} distribuídos${extras.length ? ' · ' + extras.join(' · ') : ''}${abriu}.`);
   renderAll();
 }
 
 /* ============================================================
-   MERCADO SECUNDÁRIO DE COTAS (entre cotistas ativos)
+   JANELA DE LIQUIDEZ
+   Evento periódico (trimestral) com PREÇO ÚNICO apurado por fórmula:
+   não há livro de ofertas, negociação contínua nem formação de preço.
+   Quem quer vender entra numa fila; quem quer comprar registra interesse.
+   Na apuração: investidores compradores primeiro, companhia (tesouraria)
+   como último degrau, limitada ao caixa de reserva. Se a oferta superar a
+   demanda, os vendedores são atendidos por rateio proporcional.
    ============================================================ */
-function anunciosDe(cotistaId) {
-  return state.mercado.filter(l => l.vendedorId === cotistaId && l.status === 'ativo');
-}
-function cotasAnunciadas(cotistaId) {
-  return anunciosDe(cotistaId).reduce((s, l) => s + l.cotas, 0);
-}
-/* Cotas que o cotista pode anunciar agora (não pode anunciar mais do que possui livre) */
-function cotasDisponiveisVenda(cotista) {
-  return Math.max(0, cotista.cotas - cotasAnunciadas(cotista.id));
-}
+function proximaJanelaMes() { return state.janela.ultimaExecutadaMes + state.config.janelaMeses; }
+function janelaAberta() { return state.mesAtual >= proximaJanelaMes(); }
+function mesesAteJanela() { return Math.max(0, proximaJanelaMes() - state.mesAtual); }
 
-function anunciarCotas(vendedorId, cotas, precoPorCota) {
-  const vendedor = getCotista(vendedorId);
-  if (!vendedor) return false;
-  cotas = Math.floor(cotas);
-  if (cotas <= 0 || precoPorCota <= 0) { toast('Informe quantidade e preço válidos.'); return false; }
-  if (cotas > cotasDisponiveisVenda(vendedor)) {
-    toast(`${vendedor.nome} tem só ${fmtNum(cotasDisponiveisVenda(vendedor))} cotas livres para anunciar.`);
+/* Preço único da janela = valor patrimonial da ação apurado pela fórmula */
+function precoJanela() { return estadoNoMes(state.mesAtual).valorAcao; }
+
+function pedidosVendaAtivos() { return state.janela.filaVenda.filter(p => p.status === 'na-fila' || p.status === 'parcial'); }
+function pedidosCompraAtivos() { return state.janela.filaCompra.filter(p => p.status === 'na-fila' || p.status === 'parcial'); }
+function ofertaTotal() { return pedidosVendaAtivos().reduce((s, p) => s + p.acoes, 0); }
+function interesseTotal() { return pedidosCompraAtivos().reduce((s, p) => s + p.acoes, 0); }
+
+function acoesNaFila(investidorId) {
+  return pedidosVendaAtivos().filter(p => p.investidorId === investidorId).reduce((s, p) => s + p.acoes, 0);
+}
+/* Ações que o investidor ainda pode colocar à venda (não pode ofertar o que já está na fila) */
+function acoesLivres(inv) { return Math.max(0, inv.acoes - acoesNaFila(inv.id)); }
+
+function entrarFilaVenda(investidorId, acoes) {
+  const inv = getInvestidor(investidorId);
+  if (!inv) return false;
+  acoes = Math.floor(acoes);
+  if (acoes <= 0) { toast('Informe uma quantidade válida.'); return false; }
+  if (acoes > acoesLivres(inv)) {
+    toast(`${inv.nome} tem ${fmtNum(acoesLivres(inv))} ações livres para vender.`);
     return false;
   }
-  state.mercado.push({
-    id: state.nextListingId++,
-    vendedorId, cotas,
-    precoPorCota: Math.round(precoPorCota * 100) / 100,
-    mesAnuncio: state.mesAtual,
-    status: 'ativo'
+  state.janela.filaVenda.push({
+    id: state.nextPedidoId++, investidorId, acoes,
+    mesPedido: state.mesAtual, status: 'na-fila'
   });
   persist();
-  toast(`${vendedor.nome} anunciou ${fmtNum(cotas)} cotas a ${fmtBRL(precoPorCota)} cada.`);
+  toast(`${inv.nome} entrou na fila com ${fmtNum(acoes)} ações para a próxima janela.`);
   renderAll();
   return true;
 }
 
-function cancelarAnuncio(listingId) {
-  const l = state.mercado.find(x => x.id === listingId && x.status === 'ativo');
-  if (!l) return;
-  l.status = 'cancelado';
+function registrarInteresseCompra(investidorId, acoes) {
+  const inv = getInvestidor(investidorId);
+  if (!inv) return false;
+  acoes = Math.floor(acoes);
+  if (acoes <= 0) { toast('Informe uma quantidade válida.'); return false; }
+  const limite = Math.min(
+    maxAcoesPorInvestidor() - inv.acoes,
+    tetoRestanteAno(inv) === Infinity ? Infinity : Math.floor(tetoRestanteAno(inv) / precoJanela())
+  );
+  if (limite <= 0) {
+    toast(tetoRestanteAno(inv) <= 0
+      ? `${inv.nome} atingiu o teto anual de ${fmtBRL0(state.config.tetoAporteAnualCrowd)}.`
+      : `${inv.nome} atingiu o teto de concentração (máx. ${fmtNum(maxAcoesPorInvestidor())} ações).`);
+    return false;
+  }
+  if (acoes > limite) {
+    toast(`Interesse ajustado para ${fmtNum(limite)} ações — limite do investidor.`);
+    acoes = limite;
+  }
+  state.janela.filaCompra.push({
+    id: state.nextPedidoId++, investidorId, acoes,
+    mesPedido: state.mesAtual, status: 'na-fila'
+  });
   persist();
-  toast('Anúncio cancelado.');
+  toast(`${inv.nome} registrou interesse em ${fmtNum(acoes)} ações.`);
+  renderAll();
+  return true;
+}
+
+function cancelarPedido(pedidoId, tipo) {
+  const fila = tipo === 'venda' ? state.janela.filaVenda : state.janela.filaCompra;
+  const p = fila.find(x => x.id === pedidoId);
+  if (!p) return;
+  p.status = 'cancelado';
+  persist();
+  toast('Pedido cancelado.');
   renderAll();
 }
 
-function comprarNoMercado(listingId, compradorId) {
-  const l = state.mercado.find(x => x.id === listingId && x.status === 'ativo');
-  if (!l) return;
-  const comprador = getCotista(compradorId);
-  const vendedor = getCotista(l.vendedorId);
-  if (!comprador || !vendedor) return;
-  if (comprador.id === vendedor.id) { toast('O comprador não pode ser o próprio vendedor.'); return; }
+/* Apuração da janela — função pura, não altera o estado.
+   Devolve o que aconteceria se a janela fosse executada agora. */
+function simularJanela() {
+  const preco = precoJanela();
+  const vendas = pedidosVendaAtivos();
+  const compras = pedidosCompraAtivos();
+  const oferta = vendas.reduce((s, p) => s + p.acoes, 0);
 
-  const margem = maxCotasPorCotista() - comprador.cotas; // limite de concentração
-  let qtd = Math.min(l.cotas, Math.max(0, margem));
-  if (qtd <= 0) {
-    toast(`${comprador.nome} atingiu o teto de concentração (máx. ${fmtNum(maxCotasPorCotista())} cotas).`);
-    return;
+  // Demanda dos investidores, por ordem de chegada, limitada por concentração e teto anual
+  const alocCompra = [];
+  let demanda = 0;
+  const posicaoProjetada = {};
+  compras.forEach(p => {
+    const inv = getInvestidor(p.investidorId);
+    if (!inv) return;
+    const jaProjetado = posicaoProjetada[inv.id] || 0;
+    const porConcentracao = maxAcoesPorInvestidor() - inv.acoes - jaProjetado;
+    const tetoRest = tetoRestanteAno(inv);
+    const porTeto = tetoRest === Infinity ? Infinity : Math.floor((tetoRest - jaProjetado * preco) / preco);
+    const cabe = Math.max(0, Math.min(p.acoes, porConcentracao, porTeto, oferta - demanda));
+    if (cabe > 0) {
+      alocCompra.push({ pedidoId: p.id, investidorId: inv.id, acoes: cabe });
+      posicaoProjetada[inv.id] = jaProjetado + cabe;
+      demanda += cabe;
+    }
+  });
+
+  // Último degrau: companhia recompra o que sobrar, limitada ao caixa de reserva
+  const capacidade = capacidadeRecompra();
+  const paraTesouraria = Math.max(0, Math.min(capacidade, oferta - demanda));
+  const executado = Math.min(oferta, demanda + paraTesouraria);
+
+  // Rateio proporcional entre vendedores (maior resto), quando a demanda não cobre a oferta
+  const alocVenda = [];
+  if (executado > 0 && vendas.length) {
+    const brutos = vendas.map(p => (p.acoes / oferta) * executado);
+    const arred = brutos.map(v => Math.floor(v));
+    let sobra = executado - arred.reduce((s, v) => s + v, 0);
+    const ordem = brutos.map((v, i) => ({ i, frac: v - Math.floor(v) })).sort((a, b) => b.frac - a.frac);
+    for (let k = 0; k < sobra; k++) arred[ordem[k % ordem.length].i] += 1;
+    vendas.forEach((p, i) => { if (arred[i] > 0) alocVenda.push({ pedidoId: p.id, investidorId: p.investidorId, acoes: arred[i] }); });
   }
-  const custo = qtd * l.precoPorCota;
 
-  // Vendedor: baixa cotas (compradas primeiro, depois bonificadas) e custo-base proporcional
-  const deCompradas = Math.min(vendedor.cotasCompradas, qtd);
-  const deBonificadas = qtd - deCompradas;
-  if (vendedor.cotasCompradas > 0) {
-    vendedor.valorPagoCompras = Math.round(vendedor.valorPagoCompras * (1 - deCompradas / vendedor.cotasCompradas));
-  }
-  vendedor.cotasCompradas -= deCompradas;
-  vendedor.cotasBonificadas = Math.max(0, vendedor.cotasBonificadas - deBonificadas);
-  vendedor.cotas -= qtd;
-  vendedor.historico.push({ mes: state.mesAtual, tipo: 'venda', qtd: -qtd, valor: custo, desc: `Venda de cotas no mercado para ${comprador.nome}` });
+  const irTotal = alocVenda.reduce((s, a) => {
+    const inv = getInvestidor(a.investidorId);
+    return inv ? s + calcVendaJanela(inv, a.acoes, preco).imposto : s;
+  }, 0);
 
-  // Comprador: adiciona cotas ao custo pago
-  comprador.cotas += qtd;
-  comprador.cotasCompradas += qtd;
-  comprador.valorPagoCompras += custo;
-  comprador.historico.push({ mes: state.mesAtual, tipo: 'compra-mercado', qtd, valor: custo, desc: `Compra de cotas no mercado de ${vendedor.nome}` });
+  return {
+    preco, oferta, demanda, paraTesouraria, executado, capacidade,
+    naoAtendido: oferta - executado,
+    rateioPct: oferta > 0 ? (executado / oferta) * 100 : 100,
+    alocVenda, alocCompra, irTotal,
+    desembolsoTesouraria: paraTesouraria * preco
+  };
+}
 
-  // Anúncio: reduz ou encerra
-  l.cotas -= qtd;
-  if (l.cotas <= 0) l.status = 'vendido';
+/* Executa a janela: liquida as transferências e lavra o resultado.
+   Chamado só após a aprovação formal da diretoria (passo do wizard). */
+function executarJanela() {
+  const r = simularJanela();
+  const preco = r.preco;
 
-  // Última cotação de mercado = preço do último negócio realizado
-  state.precoMercado = l.precoPorCota;
+  // Vendedores: baixa ações e custo de aquisição proporcional; IR sobre o ganho
+  r.alocVenda.forEach(a => {
+    const inv = getInvestidor(a.investidorId);
+    if (!inv) return;
+    const v = calcVendaJanela(inv, a.acoes, preco);
+    inv.acoes -= a.acoes;
+    inv.valorPago = Math.max(0, inv.valorPago - v.custoBaixado);
+    inv.historico.push({
+      mes: state.mesAtual, tipo: 'venda-janela', qtd: -a.acoes, valor: v.liquido,
+      desc: `Venda na janela · IR ${fmtBRL(v.imposto)} · liquidação em até ${state.config.prazoLiquidacaoDias} dias`
+    });
+    const pedido = state.janela.filaVenda.find(p => p.id === a.pedidoId);
+    if (pedido) {
+      pedido.acoes -= a.acoes;
+      pedido.status = pedido.acoes > 0 ? 'parcial' : 'executado';
+    }
+  });
+
+  // Compradores: recebem ações dos vendedores (transferência, não emissão)
+  r.alocCompra.forEach(a => {
+    const inv = getInvestidor(a.investidorId);
+    if (!inv) return;
+    const custo = a.acoes * preco;
+    const ano = anoDoMes(state.mesAtual);
+    inv.acoes += a.acoes;
+    inv.valorPago += custo;
+    inv.aportadoNoAno[ano] = (inv.aportadoNoAno[ano] || 0) + custo;
+    inv.historico.push({ mes: state.mesAtual, tipo: 'compra-janela', qtd: a.acoes, valor: custo, desc: 'Compra na Janela de Liquidez' });
+    const pedido = state.janela.filaCompra.find(p => p.id === a.pedidoId);
+    if (pedido) {
+      pedido.acoes -= a.acoes;
+      pedido.status = pedido.acoes > 0 ? 'parcial' : 'executado';
+    }
+  });
+
+  // Companhia recompra o resíduo — ações vão para a tesouraria
+  if (r.paraTesouraria > 0) devolverAcoesTesouraria(r.paraTesouraria);
+
+  state.janela.historico.push({
+    mes: state.mesAtual, preco,
+    acoesNegociadas: r.executado,
+    paraInvestidores: r.demanda, paraTesouraria: r.paraTesouraria,
+    rateioPct: Math.round(r.rateioPct),
+    irRecolhido: Math.round(r.irTotal * 100) / 100,
+    desembolsoTesouraria: Math.round(r.desembolsoTesouraria * 100) / 100
+  });
+  state.janela.ultimaExecutadaMes = state.mesAtual;
 
   persist();
-  const ad = agioDesagioPct();
-  const adTxt = Math.abs(ad) < 0.5 ? 'no valor patrimonial' : ad > 0 ? `ágio de ${fmtPct(ad)}` : `deságio de ${fmtPct(Math.abs(ad))}`;
-  toast(`${comprador.nome} comprou ${fmtNum(qtd)} cotas de ${vendedor.nome} por ${fmtBRL0(custo)} — cotação ${adTxt}.`);
+  toast(r.executado > 0
+    ? `Janela liquidada: ${fmtNum(r.executado)} ações a ${fmtBRL(preco)}${r.naoAtendido > 0 ? ` · rateio de ${Math.round(r.rateioPct)}%` : ''}.`
+    : 'Janela apurada sem negócios — nenhum pedido na fila.');
   renderAll();
+  return r;
 }
 
 /* ============================================================
@@ -1563,7 +1439,7 @@ function comprarNoMercado(listingId, compradorId) {
 function renderEvolucao() {
   const linhas = [];
   for (let ano = 0; ano <= 10; ano++) linhas.push(estadoNoMes(ano * 12));
-  const pontos = linhas.map(l => ({ y: l.valorCota, label: `${l.mes / 12}a` }));
+  const pontos = linhas.map(l => ({ y: l.valorAcao, label: `${l.mes / 12}a` }));
   document.getElementById('evolucao-chart').innerHTML = svgLineChart(pontos, { height: 200 });
 
   document.getElementById('evolucao-list').innerHTML = `
@@ -1571,292 +1447,297 @@ function renderEvolucao() {
       ${linhas.map(l => `
         <div class="citem">
           <div class="citem-top">
-            <div><span class="citem-name">Ano ${l.mes / 12}</span><div class="citem-meta">valuation ${fmtShort(l.valuation)}</div></div>
-            <div class="citem-val"><span class="big">${fmtBRL(l.valorCota)}</span><span class="small">por cota</span></div>
+            <div><span class="citem-name">Ano ${l.mes / 12}</span><div class="citem-meta">valuation da unidade ${fmtShort(l.valuation)}</div></div>
+            <div class="citem-val"><span class="big">${fmtBRL(l.valorAcao)}</span><span class="small">por ação</span></div>
           </div>
-          <div class="citem-row"><span>Patrimônio do fundo</span><span class="v">${fmtBRL0(l.patrimonioFundo)}</span></div>
+          <div class="citem-row"><span>Patrimônio da companhia</span><span class="v">${fmtBRL0(l.patrimonioVeiculo)}</span></div>
         </div>`).join('')}
     </div>
   `;
 }
 
 /* ============================================================
-   SAÍDA & RECOMPRA
-   ============================================================ */
-function renderSaida() {
-  const c = getCotista(state.saidaSelId) || state.cotistas[0];
-  document.getElementById('saida-switch-label').textContent = `${c.nome} — ${c.unidade}`;
-
-  const r = calcSaidaScenario(c);
-
-  document.getElementById('saida-body').innerHTML = `
-    <div class="identity-card">
-      <div class="avatar" style="background-image:url('${c.fotoUrl}'); background-size:cover; background-position:center;"></div>
-      <div class="info"><h2>${c.nome}</h2><div class="role">${c.unidade} · entrou no mês ${c.mesEntrada} · ${fmtNum(c.cotas)} cotas</div></div>
-    </div>
-    <div class="scenario">
-      <span class="tier badge gold">RECOMPRA PELO FUNDO — SEM CARÊNCIA</span>
-      <div class="scenario-row"><span class="k">Valor da cota na saída</span><span class="v">${fmtBRL(r.valorCotaAtual)}</span></div>
-      <div class="scenario-row"><span class="k">Cotas recompradas (100%)</span><span class="v">${fmtNum(r.totalCotas)}</span></div>
-      <div class="scenario-row"><span class="k">Valor de venda ao preço de mercado</span><span class="v">${fmtBRL(r.valorVenda)}</span></div>
-      <div class="scenario-row"><span class="k">Ganho de capital</span><span class="v">${fmtBRL(r.ganho)}</span></div>
-      <div class="scenario-row"><span class="k">IRRF (${state.config.irrfPct}% sobre o ganho)</span><span class="v">− ${fmtBRL(r.imposto)}</span></div>
-      <div class="scenario-row total"><span class="k">Valor líquido recebido</span><span class="v">${fmtBRL(r.valorLiquido)}</span></div>
-    </div>
-    <p class="hint" style="margin-top:14px;">Sem regra de vesting: independente do tempo de casa, ao sair o cotista tem 100% das cotas recompradas pelo valor de mercado do momento, com IRRF de ${state.config.irrfPct}% sobre o ganho de capital (se houver).</p>
-
-    <div class="m-card" style="margin-top:16px;">
-      <h3 style="margin-bottom:10px;">Cascata de Recompra</h3>
-      <div class="waterfall">
-        <div class="wf-step"><span class="wf-n">1</span><div><strong>Funcionários ativos</strong><p>As cotas são ofertadas primeiro aos colegas, pelo Mercado de Cotas. Quem quiser, compra direto.</p></div></div>
-        <div class="wf-step"><span class="wf-n">2</span><div><strong>Empresa</strong><p>Se ninguém comprar, a empresa recompra para a Reserva e reusa as cotas em novas bonificações.</p></div></div>
-        <div class="wf-step last"><span class="wf-n">3</span><div><strong>Fundo</strong><p>Em último caso, o fundo recompra para a Tesouraria, garantindo a liquidez de quem sai.</p></div></div>
-      </div>
-      <p class="hint" style="margin-top:6px;">Pagamento em até <strong>${state.config.prazoPagamentoDias} dias</strong> a partir do desligamento.</p>
-      <div class="citem-actions" style="margin-top:14px;">
-        <button class="btn sm ghost full" id="btn-saida-empresa">Empresa recompra</button>
-        <button class="btn sm primary full" id="btn-saida-fundo">Fundo recompra</button>
-      </div>
-      <button class="btn ghost full" id="btn-saida-mercado" style="margin-top:10px;">Ofertar aos funcionários (Mercado)</button>
-    </div>
-  `;
-
-  const exec = (absorvedor) => {
-    const quem = absorvedor === 'empresa' ? 'a Empresa' : 'o Fundo';
-    if (!confirm(`Processar o desligamento de ${c.nome}? ${quem} recompra ${fmtNum(c.cotas)} cotas por ${fmtBRL0(r.valorLiquido)} líquidos, com pagamento em até ${state.config.prazoPagamentoDias} dias.`)) return;
-    processarSaida(c.id, absorvedor);
-  };
-  document.getElementById('btn-saida-empresa').addEventListener('click', () => exec('empresa'));
-  document.getElementById('btn-saida-fundo').addEventListener('click', () => exec('fundo'));
-  document.getElementById('btn-saida-mercado').addEventListener('click', () => abrirModalAnuncio(c.id));
-}
-
-/* ============================================================
-   REGRAS DO FUNDO
+   REGRAS DO PROGRAMA
    ============================================================ */
 function renderRegras() {
   const c = state.config;
   const e = estadoNoMes(state.mesAtual);
-  const reservaEmp = state.reservaEmpresa || 0;
-  const tesFundo = state.tesourariaFundo || 0;
-  const maxCota = maxCotasPorCotista();
-  const pendentes = (state.pagamentosPendentes || []).filter(p => p.status === 'pendente');
+  const comInv = acoesComInvestidores();
 
   document.getElementById('regras-body').innerHTML = `
     <div class="m-card">
-      <h3 style="margin-bottom:10px;">De quem são as cotas</h3>
-      <p style="font-size:13px; line-height:1.65; color:var(--ink-dim);">Toda cota do fundo pertence a um de três lugares. A soma é sempre igual ao total emitido — nada aparece nem some do nada.</p>
+      <h3 style="margin-bottom:4px;">Onde estão as ações hoje</h3>
+      <p class="hint" style="margin-bottom:12px;">O capital autorizado da companhia é de ${fmtNum(c.totalAcoes)} ações, divididas em três lugares. A soma é sempre igual ao total — nada some, nada aparece do nada.</p>
       <div class="rule-pools">
-        <div class="rp"><span class="rp-dot" style="background:var(--gold);"></span><div><strong>Cotistas</strong><span>${fmtNum(totalDistribuido())} cotas com funcionários</span></div></div>
-        <div class="rp"><span class="rp-dot" style="background:var(--olive);"></span><div><strong>Reserva da Empresa</strong><span>${fmtNum(reservaEmp)} cotas — a empresa usa para bonificar quem performa</span></div></div>
-        <div class="rp"><span class="rp-dot" style="background:#6f9bb0;"></span><div><strong>Tesouraria do Fundo</strong><span>${fmtNum(tesFundo)} cotas — o fundo usa para recomprar quem sai</span></div></div>
+        <div class="rp"><span class="rp-dot" style="background:var(--gold);"></span><div><strong>Com investidores</strong><span>${fmtNum(comInv)} ações · ${fmtBRL0(comInv * e.valorAcao)}</span></div></div>
+        <div class="rp"><span class="rp-dot" style="background:var(--olive);"></span><div><strong>Em tesouraria</strong><span>${fmtNum(state.acoesEmTesouraria)} ações — recompradas pela companhia, prontas para novos aportes</span></div></div>
+        <div class="rp"><span class="rp-dot" style="background:var(--ink-faint);"></span><div><strong>A emitir</strong><span>${fmtNum(state.acoesDisponiveisEmissao)} ações — capital autorizado ainda não emitido</span></div></div>
       </div>
-      <div class="scenario-row total" style="margin-top:6px;"><span class="k">Total emitido</span><span class="v">${fmtNum(c.totalCotas)} cotas</span></div>
     </div>
 
     <div class="m-card">
-      <h3 style="margin-bottom:4px;">Dinheiro x cotas</h3>
-      <p class="hint" style="margin-bottom:8px;">Não confunda as duas coisas:</p>
-      <div class="scenario-row"><span class="k">Caixa de recompra (dinheiro)</span><span class="v">${fmtBRL0(e.patrimonioFundo * (c.reservaPct / 100))}</span></div>
-      <div class="scenario-row"><span class="k">Cotas em reserva/tesouraria</span><span class="v">${fmtNum(reservaEmp + tesFundo)} cotas</span></div>
-      <p class="hint" style="margin-top:8px;">A <strong>Tesouraria/Reserva</strong> guarda <strong>cotas</strong> (para bonificar e recomprar). O <strong>Caixa de recompra</strong> é <strong>dinheiro</strong> (${c.reservaPct}% do patrimônio) separado para pagar quem sai. São coisas diferentes.</p>
+      <h3 style="margin-bottom:4px;">Um preço só, apurado por fórmula</h3>
+      <p class="hint" style="margin-bottom:10px;">Não existe cotação, livro de ofertas nem negociação contínua neste programa. Todo mundo entra e sai pelo mesmo valor: o <strong>valor patrimonial da ação</strong>.</p>
+      <div class="scenario-row"><span class="k">Patrimônio da companhia</span><span class="v">${fmtBRL0(e.patrimonioVeiculo)}</span></div>
+      <div class="scenario-row"><span class="k">÷ capital autorizado</span><span class="v">${fmtNum(c.totalAcoes)} ações</span></div>
+      <div class="scenario-row total"><span class="k">= valor da ação hoje</span><span class="v">${fmtBRL(e.valorAcao)}</span></div>
+      <p class="hint" style="margin-top:10px;">O valor sobe quando a ${c.nomeUnidade} vale mais (lucro × múltiplo) e cai com os custos do veículo. Comprar ou vender <strong>não muda</strong> esse valor: entra dinheiro e entra ação na mesma proporção.</p>
     </div>
 
     <div class="m-card">
-      <h3 style="margin-bottom:4px;">Valor patrimonial x Preço de mercado</h3>
-      <p class="hint" style="margin-bottom:8px;">Como em qualquer FIP ou FII fechado, a cota tem dois valores:</p>
-      <div class="scenario-row"><span class="k">Valor patrimonial (NAV) hoje</span><span class="v">${fmtBRL(e.valorCota)}</span></div>
-      <div class="scenario-row"><span class="k">Preço de mercado (última cotação)</span><span class="v">${fmtBRL(state.precoMercado)}</span></div>
-      <div class="scenario-row total"><span class="k">Ágio / deságio</span><span class="v">${Math.abs(agioDesagioPct()) < 0.5 ? 'no par' : (agioDesagioPct() > 0 ? '+' : '') + fmtPct(agioDesagioPct())}</span></div>
-      <div class="diff-list" style="margin-top:14px;">
-        <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Comprar e vender NÃO muda o valor patrimonial</strong><span>Emissão e recompra acontecem ao NAV: entra/sai dinheiro e cota na mesma proporção. O NAV só muda com o desempenho do ativo (a academia valorizando e distribuindo resultado).</span></div></div>
-        <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Comprar e vender MUDA o preço de mercado</strong><span>No mercado secundário, oferta e demanda empurram a cotação para ágio (mais compradores) ou deságio (mais vendedores). É o preço que um colega paga a outro.</span></div></div>
-        <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>O preço gravita de volta ao NAV</strong><span>No longo prazo o preço de mercado tende a acompanhar o valor patrimonial — o ágio/deságio é o "humor" de curto prazo do mercado interno.</span></div></div>
-      </div>
-      <p class="hint" style="margin-top:10px;">Na prática: a <strong>recompra na saída</strong> é sempre pelo valor patrimonial (justo e previsível). O <strong>ágio/deságio</strong> vive só no Mercado de Cotas, entre colegas.</p>
-    </div>
-
-    <div class="m-card">
-      <h3 style="margin-bottom:14px;">Como uma cota se move</h3>
+      <h3 style="margin-bottom:14px;">Como se entra</h3>
       <div class="flow">
-        <div class="flow-step"><span class="flow-n">1</span><div><strong>Bonificação</strong><p>A empresa distribui cotas da <strong>Reserva da Empresa</strong> aos funcionários que performam (via líderes, no Ciclo Mensal). Limite de ${c.cotasLiderMes} cotas/líder por mês.</p></div></div>
-        <div class="flow-step"><span class="flow-n">2</span><div><strong>Compra</strong><p>O funcionário compra cotas por emissão primária (saem da Tesouraria do Fundo, depois da Reserva). Limite de ${c.limiteCompraMes} cotas/mês por pessoa, via folha ou avulsa.</p></div></div>
-        <div class="flow-step"><span class="flow-n">3</span><div><strong>Revenda entre colegas</strong><p>No <strong>Mercado de Cotas</strong>, um cotista anuncia e outro funcionário ativo compra, ao preço negociado. Cota vai de pessoa para pessoa, sem passar pelos pools.</p></div></div>
-        <div class="flow-step last"><span class="flow-n">4</span><div><strong>Recompra na saída</strong><p>Quem sai da empresa tem as cotas recompradas e devolvidas ao pool de quem recomprou. Segue a cascata de prioridade abaixo.</p></div></div>
+        <div class="flow-step"><span class="flow-n">1</span><div><strong>Oferta privada</strong><p>Círculo restrito de investidores, por convite. Sem teto de aporte e sem divulgação pública.</p></div></div>
+        <div class="flow-step"><span class="flow-n">2</span><div><strong>Crowdfunding</strong><p>Captação pública via plataforma autorizada. Cada investidor de varejo pode aportar até <strong>${fmtBRL0(c.tetoAporteAnualCrowd)} por ano</strong>.</p></div></div>
+        <div class="flow-step last"><span class="flow-n">3</span><div><strong>Sempre por emissão</strong><p>Todo aporte emite ações novas ao valor patrimonial — primeiro da tesouraria, depois do capital autorizado. Investidor novo só entra por aqui, nunca pela janela.</p></div></div>
       </div>
     </div>
 
     <div class="m-card">
-      <h3 style="margin-bottom:6px;">Quem recompra: ordem de prioridade</h3>
-      <p class="hint" style="margin-bottom:12px;">Quando alguém quer vender ou sai da empresa, as cotas são oferecidas nesta ordem:</p>
-      <div class="waterfall">
-        <div class="wf-step"><span class="wf-n">1</span><div><strong>Funcionários ativos</strong><p>Direito de preferência. As cotas aparecem no Mercado de Cotas para os colegas comprarem primeiro.</p></div></div>
-        <div class="wf-step"><span class="wf-n">2</span><div><strong>Empresa</strong><p>Se ninguém comprar, a empresa recompra para a Reserva e reaproveita em novas bonificações.</p></div></div>
-        <div class="wf-step last"><span class="wf-n">3</span><div><strong>Fundo</strong><p>Em último caso, o fundo recompra para a Tesouraria — é a garantia de liquidez de quem sai.</p></div></div>
+      <h3 style="margin-bottom:14px;">Como se sai — a Janela de Liquidez</h3>
+      <div class="wf">
+        <div class="wf-step"><span class="wf-n">1</span><div><strong>Entrar na fila</strong><p>A qualquer momento o investidor pede para vender, no todo ou em parte. O pedido fica na fila até a próxima janela.</p></div></div>
+        <div class="wf-step"><span class="wf-n">2</span><div><strong>Janela a cada ${c.janelaMeses} meses</strong><p>Na data, apura-se o preço único e cruzam-se os pedidos. Próxima: ${janelaAberta() ? 'aberta agora' : fmtMes(proximaJanelaMes())}.</p></div></div>
+        <div class="wf-step"><span class="wf-n">3</span><div><strong>Investidores compram primeiro</strong><p>Quem registrou interesse é atendido por ordem de chegada, respeitando o teto de concentração e o teto anual do crowdfunding.</p></div></div>
+        <div class="wf-step"><span class="wf-n">4</span><div><strong>A companhia é o último degrau</strong><p>O que sobrar é recomprado pela companhia, limitado ao caixa de reserva (${c.reservaPct}% do patrimônio = ${fmtNum(capacidadeRecompra())} ações hoje). As ações vão para a tesouraria.</p></div></div>
+        <div class="wf-step"><span class="wf-n">5</span><div><strong>Rateio se faltar demanda</strong><p>Se a oferta superar a demanda, todos os vendedores são atendidos proporcionalmente e o saldo continua na fila para a janela seguinte. Ninguém fura fila.</p></div></div>
+        <div class="wf-step last"><span class="wf-n">6</span><div><strong>Aprovação e livro</strong><p>A Diretoria aprova a operação e lavra as transferências no Livro de Registro de Ações Nominativas. O pagamento sai em até <strong>${c.prazoLiquidacaoDias} dias</strong>.</p></div></div>
       </div>
     </div>
 
     <div class="m-card">
-      <h3 style="margin-bottom:10px;">Regras de saída da empresa</h3>
-      <div class="diff-list">
-        <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Recompra obrigatória</strong><span>Saiu da empresa, as 100% das cotas são recompradas — o fundo é exclusivo de funcionários ativos.</span></div></div>
-        <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Preço justo (marcação a mercado)</strong><span>Recompra pelo valor patrimonial da cota no dia da saída. O funcionário leva a valorização do período.</span></div></div>
-        <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>Pagamento em até ${c.prazoPagamentoDias} dias</strong><span>A empresa/fundo tem até ${c.prazoPagamentoDias} dias para pagar a recompra, sem travar o caixa operacional.</span></div></div>
-        <div class="diff-row"><span class="check">✓</span><div class="txt"><strong>IRRF de ${c.irrfPct}% sobre o ganho</strong><span>Incide só sobre o ganho de capital (diferença entre o que pagou e o que recebe).</span></div></div>
-      </div>
-      ${pendentes.length ? `
-        <div class="group-label" style="margin:16px 0 8px;"><span>Pagamentos de saída pendentes</span><span class="count">${pendentes.length}</span></div>
-        <div class="clist">
-          ${pendentes.map(p => `
-            <div class="citem"><div class="citem-top">
-              <div><span class="citem-name">${p.cotistaNome}</span><div class="citem-meta">${p.absorvedor === 'empresa' ? 'Empresa' : 'Fundo'} · saiu ${fmtMes(p.mesSaida)} · pagar até ${fmtMes(p.mesLimite)}</div></div>
-              <div class="citem-val"><span class="big">${fmtBRL0(p.valorLiquido)}</span><span class="small">${fmtNum(p.cotas)} cotas</span></div>
-            </div></div>`).join('')}
-        </div>` : ''}
+      <h3 style="margin-bottom:10px;">Limites e impostos</h3>
+      <div class="scenario-row"><span class="k">Máximo por investidor</span><span class="v">${fmtNum(maxAcoesPorInvestidor())} ações (${c.limiteConcentracaoPct}%)</span></div>
+      <div class="scenario-row"><span class="k">Teto anual — crowdfunding</span><span class="v">${fmtBRL0(c.tetoAporteAnualCrowd)}</span></div>
+      <div class="scenario-row"><span class="k">Teto anual — oferta privada</span><span class="v">sem teto</span></div>
+      <div class="scenario-row"><span class="k">IR sobre o ganho na venda</span><span class="v">${c.irGanhoPct}%</span></div>
+      <div class="scenario-row total"><span class="k">Prazo de liquidação</span><span class="v">até ${c.prazoLiquidacaoDias} dias</span></div>
+      <p class="hint" style="margin-top:10px;">O IR incide só sobre o <strong>ganho</strong>: a diferença entre o preço da janela e o custo médio de aquisição, que o sistema registra desde o primeiro aporte. Dividendo de ação, hoje, chega isento para quem recebe valores dessa ordem.</p>
     </div>
 
     <div class="m-card">
-      <h3 style="margin-bottom:10px;">Proteções do fundo</h3>
-      <div class="scenario-row"><span class="k">Concentração máxima por cotista</span><span class="v">${c.limiteConcentracaoPct}% · ${fmtNum(maxCota)} cotas</span></div>
-      <div class="scenario-row"><span class="k">Caixa de recompra</span><span class="v">${c.reservaPct}% do patrimônio</span></div>
-      <div class="scenario-row"><span class="k">Compra por funcionário / mês</span><span class="v">${fmtNum(c.limiteCompraMes)} cotas</span></div>
-      <div class="scenario-row"><span class="k">Bonificação por líder / mês</span><span class="v">${fmtNum(c.cotasLiderMes)} cotas</span></div>
-      <p class="hint" style="margin-top:10px;">Nenhuma pessoa pode concentrar cotas demais, e o fundo mantém dinheiro em caixa para honrar recompras. Ajuste tudo na aba <strong>Configuração do Fundo</strong>.</p>
+      <h3 style="margin-bottom:10px;">Por que a companhia retém dividendos</h3>
+      <p class="hint">O dividendo é calculado sobre o capital autorizado inteiro, mas só quem tem ação recebe. A parcela correspondente às ações em tesouraria e às ainda não emitidas fica na companhia e alimenta justamente o <strong>caixa de reserva</strong> que garante a recompra na janela. É o que faz a promessa de liquidez ter lastro.</p>
     </div>
   `;
 }
 
 /* ============================================================
-   MERCADO DE COTAS
+   JANELA DE LIQUIDEZ — VIEW
    ============================================================ */
-function renderMercado() {
-  const valorCota = estadoNoMes(state.mesAtual).valorCota;
-  const ativos = state.mercado.filter(l => l.status === 'ativo');
-  const totalCotasVenda = ativos.reduce((s, l) => s + l.cotas, 0);
-  const volumeTotal = ativos.reduce((s, l) => s + l.cotas * l.precoPorCota, 0);
-  const precos = ativos.map(l => l.precoPorCota);
-  const faixa = precos.length ? `${fmtBRL(Math.min(...precos))} – ${fmtBRL(Math.max(...precos))}` : '—';
+function renderJanela() {
+  const cfg = state.config;
+  const preco = precoJanela();
+  const aberta = janelaAberta();
+  const oferta = ofertaTotal();
+  const interesse = interesseTotal();
+  const capacidade = capacidadeRecompra();
 
-  const ad = agioDesagioPct();
-  const adCls = ad > 0.5 ? 'neg' : ad < -0.5 ? 'pos' : ''; // ágio = preço acima (rust), deságio = abaixo (olive)
-  const adTxt = Math.abs(ad) < 0.5 ? 'no valor patrimonial' : ad > 0 ? `ágio ${fmtPct(ad)}` : `deságio ${fmtPct(Math.abs(ad))}`;
-
-  const hist = state.cotacaoHist || [];
-  const precoPts = hist.map(h => ({ y: h.preco, label: `M${h.mes}` }));
-  const navPts = hist.map(h => ({ y: h.nav, label: `M${h.mes}` }));
-
-  document.getElementById('mercado-resumo').innerHTML = `
+  document.getElementById('janela-resumo').innerHTML = `
     <div class="stat-grid">
-      <div class="kpi-card"><span class="lbl">Preço de mercado</span><span class="val">${fmtBRL(state.precoMercado)}</span><span class="sub ${adCls}">${adTxt}</span></div>
-      <div class="kpi-card"><span class="lbl">Valor patrimonial (NAV)</span><span class="val">${fmtBRL(valorCota)}</span><span class="sub">definido pelo ativo</span></div>
-      <div class="kpi-card"><span class="lbl">Cotas à venda</span><span class="val">${fmtNum(totalCotasVenda)}</span><span class="sub">${ativos.length} anúncios · oferta</span></div>
-      <div class="kpi-card"><span class="lbl">Faixa de preço</span><span class="val" style="font-size:13px;">${faixa}</span><span class="sub">min – máx pedido</span></div>
+      <div class="kpi-card"><span class="lbl">${aberta ? 'Janela' : 'Próxima janela'}</span><span class="val">${aberta ? 'Aberta' : fmtMes(proximaJanelaMes())}</span><span class="sub ${aberta ? 'pos' : ''}">${aberta ? 'pronta para apurar' : `em ${mesesAteJanela()} ${mesesAteJanela() === 1 ? 'mês' : 'meses'}`}</span></div>
+      <div class="kpi-card"><span class="lbl">Preço da janela</span><span class="val">${fmtBRL(preco)}</span><span class="sub">valor patrimonial apurado</span></div>
+      <div class="kpi-card"><span class="lbl">Na fila de venda</span><span class="val">${fmtNum(oferta)}</span><span class="sub">${pedidosVendaAtivos().length} pedidos</span></div>
+      <div class="kpi-card"><span class="lbl">Demanda</span><span class="val">${fmtNum(interesse + capacidade)}</span><span class="sub">${fmtNum(interesse)} de investidores + ${fmtNum(capacidade)} da companhia</span></div>
     </div>
     <div class="m-card" style="margin:12px 0 4px;">
-      <div class="panel-title"><h2>Cotação de Mercado</h2><span class="meta">preço x NAV</span></div>
-      <div id="mercado-cotacao-chart"></div>
-      <div class="chart-legend">
-        <span class="lg"><i class="ln gold"></i>Preço de mercado</span>
-        <span class="lg"><i class="ln dash"></i>Valor patrimonial (NAV)</span>
-      </div>
-      <p class="hint" style="margin-top:6px;">O preço de mercado flutua com oferta e demanda em <strong>ágio</strong> (acima) ou <strong>deságio</strong> (abaixo) do valor patrimonial — que é definido pelo desempenho do ativo, não pelos negócios. Igual a um fundo fechado (FIP/FII). Entenda em <strong>Regras do Fundo</strong>.</p>
+      <h3 style="margin-bottom:6px;">Preço único, apurado por fórmula</h3>
+      <p class="hint">Não existe cotação nem negociação contínua aqui. Todos negociam pelo <strong>mesmo preço</strong> — o valor patrimonial da ação no dia da apuração. Se houver mais gente vendendo do que comprando, o atendimento é por <strong>rateio proporcional</strong>, e o saldo continua na fila para a próxima janela.</p>
     </div>
-    <button class="btn primary full" id="btn-anunciar-mercado" style="margin-top:4px;">+ Anunciar cotas à venda</button>
+    <div style="display:flex; gap:8px; margin-top:10px;">
+      <button class="btn ghost full" id="btn-nova-venda">Entrar na fila de venda</button>
+      <button class="btn ghost full" id="btn-novo-interesse">Registrar interesse</button>
+    </div>
+    ${aberta ? `<button class="btn primary full" id="btn-apurar" style="margin-top:8px;">Apurar e executar a janela →</button>`
+             : `<p class="hint" style="text-align:center; margin-top:10px;">A janela abre em ${fmtMes(proximaJanelaMes())}. Até lá, os pedidos ficam acumulando na fila.</p>`}
   `;
-  if (precoPts.length > 1) {
-    document.getElementById('mercado-cotacao-chart').innerHTML = svgLineChart(precoPts, { height: 170, refPoints: navPts });
-  }
-  document.getElementById('btn-anunciar-mercado').addEventListener('click', () => abrirModalAnuncio());
+  document.getElementById('btn-nova-venda').addEventListener('click', () => abrirModalVenda());
+  document.getElementById('btn-novo-interesse').addEventListener('click', () => abrirModalInteresse());
+  const btnApurar = document.getElementById('btn-apurar');
+  if (btnApurar) btnApurar.addEventListener('click', abrirWizardJanela);
 
-  const lista = document.getElementById('mercado-list');
-  if (!ativos.length) {
-    lista.innerHTML = `<div class="empty">Nenhuma cota anunciada no momento. Toque em “Anunciar cotas à venda”.</div>`;
-    return;
-  }
+  // Fila de venda
+  const vendas = pedidosVendaAtivos();
+  document.getElementById('janela-fila-venda').innerHTML = !vendas.length
+    ? `<div class="empty">Ninguém na fila de venda no momento.</div>`
+    : vendas.map(p => {
+        const inv = getInvestidor(p.investidorId);
+        if (!inv) return '';
+        const v = calcVendaJanela(inv, p.acoes, preco);
+        return `
+        <div class="janela-card">
+          <div class="janela-top">
+            <div class="janela-quem">
+              <span class="avatar" style="background-image:url('${inv.fotoUrl}');"></span>
+              <div>
+                <div class="jnome">${inv.nome}</div>
+                <div class="jmeta">${ORIGENS.find(o => o.key === inv.origem).curto} · pedido em ${fmtMes(p.mesPedido)}</div>
+              </div>
+            </div>
+            ${p.status === 'parcial' ? `<span class="badge gold">PARCIAL</span>` : ''}
+          </div>
+          <div class="janela-body">
+            <div class="janela-fig"><span class="k">Ações</span><span class="v">${fmtNum(p.acoes)}</span></div>
+            <div class="janela-fig"><span class="k">Bruto</span><span class="v">${fmtBRL0(v.bruto)}</span></div>
+            <div class="janela-fig"><span class="k">Líquido de IR</span><span class="v gold">${fmtBRL0(v.liquido)}</span></div>
+          </div>
+          <button class="btn sm ghost full" data-cancelar-venda="${p.id}">Cancelar pedido</button>
+        </div>`;
+      }).join('');
+  document.querySelectorAll('[data-cancelar-venda]').forEach(b =>
+    b.addEventListener('click', () => cancelarPedido(Number(b.dataset.cancelarVenda), 'venda')));
 
-  // ordena por deságio (mais barato relativo ao valor patrimonial primeiro)
-  ativos.sort((a, b) => (a.precoPorCota - valorCota) / valorCota - (b.precoPorCota - valorCota) / valorCota);
-
-  lista.innerHTML = ativos.map(l => {
-    const v = getCotista(l.vendedorId);
-    if (!v) return '';
-    const total = l.cotas * l.precoPorCota;
-    const delta = ((l.precoPorCota - valorCota) / valorCota) * 100;
-    const deltaCls = delta > 0.5 ? 'agio' : delta < -0.5 ? 'desagio' : 'par';
-    const deltaTxt = delta > 0.5 ? `ágio ${fmtPct(delta)}` : delta < -0.5 ? `deságio ${fmtPct(Math.abs(delta))}` : 'no valor patrimonial';
-    return `
-      <div class="market-card">
-        <div class="market-top">
-          <div class="market-seller">
-            <span class="avatar" style="background-image:url('${v.fotoUrl}');"></span>
-            <div>
-              <div class="mname">${v.papel === 'lider' ? '★ ' : ''}${v.nome}</div>
-              <div class="mmeta">${v.unidade} · anunciou ${fmtMes(l.mesAnuncio)}</div>
+  // Fila de compra
+  const compras = pedidosCompraAtivos();
+  document.getElementById('janela-fila-compra').innerHTML = !compras.length
+    ? `<div class="empty">Nenhum interesse de compra registrado.</div>`
+    : compras.map(p => {
+        const inv = getInvestidor(p.investidorId);
+        if (!inv) return '';
+        return `
+        <div class="janela-card">
+          <div class="janela-top">
+            <div class="janela-quem">
+              <span class="avatar" style="background-image:url('${inv.fotoUrl}');"></span>
+              <div>
+                <div class="jnome">${inv.nome}</div>
+                <div class="jmeta">${ORIGENS.find(o => o.key === inv.origem).curto} · desde ${fmtMes(p.mesPedido)}</div>
+              </div>
             </div>
           </div>
-          <span class="market-delta ${deltaCls}">${deltaTxt}</span>
-        </div>
-        <div class="market-body">
-          <div class="market-fig"><span class="k">Cotas</span><span class="v">${fmtNum(l.cotas)}</span></div>
-          <div class="market-fig"><span class="k">Preço/cota</span><span class="v">${fmtBRL(l.precoPorCota)}</span></div>
-          <div class="market-fig"><span class="k">Total</span><span class="v gold">${fmtBRL0(total)}</span></div>
-        </div>
-        <div class="market-actions">
-          <button class="btn sm ghost full" data-cancelar="${l.id}">Cancelar</button>
-          <button class="btn sm primary full" data-comprar-mercado="${l.id}">Comprar</button>
-        </div>
-      </div>`;
-  }).join('');
+          <div class="janela-body">
+            <div class="janela-fig"><span class="k">Quer comprar</span><span class="v">${fmtNum(p.acoes)}</span></div>
+            <div class="janela-fig"><span class="k">Valor</span><span class="v gold">${fmtBRL0(p.acoes * preco)}</span></div>
+          </div>
+          <button class="btn sm ghost full" data-cancelar-compra="${p.id}">Cancelar interesse</button>
+        </div>`;
+      }).join('');
+  document.querySelectorAll('[data-cancelar-compra]').forEach(b =>
+    b.addEventListener('click', () => cancelarPedido(Number(b.dataset.cancelarCompra), 'compra')));
 
-  lista.querySelectorAll('[data-comprar-mercado]').forEach(b => b.addEventListener('click', () => {
-    const listing = state.mercado.find(x => x.id === Number(b.dataset.comprarMercado));
-    openCotistaPicker(null, (compradorId) => comprarNoMercado(listing.id, compradorId), listing.vendedorId, 'Quem está comprando?');
-  }));
-  lista.querySelectorAll('[data-cancelar]').forEach(b => b.addEventListener('click', () => cancelarAnuncio(Number(b.dataset.cancelar))));
+  // Histórico de janelas
+  const hist = [...state.janela.historico].reverse();
+  document.getElementById('janela-historico').innerHTML = !hist.length
+    ? `<div class="empty">Nenhuma janela executada ainda.</div>`
+    : `<div class="m-card">${hist.map(h => `
+        <div class="scenario-row"><span class="k">${fmtMes(h.mes)} · ${fmtBRL(h.preco)}/ação</span><span class="v">${fmtNum(h.acoesNegociadas)} ações</span></div>
+        <p class="hint" style="margin:-4px 0 10px;">${fmtNum(h.paraInvestidores)} entre investidores · ${fmtNum(h.paraTesouraria)} recompradas pela companhia${h.rateioPct < 100 ? ` · rateio de ${h.rateioPct}%` : ''} · IR ${fmtBRL(h.irRecolhido)}</p>
+      `).join('')}</div>`;
 }
 
-function abrirModalAnuncio(preSelId) {
-  const valorCota = estadoNoMes(state.mesAtual).valorCota;
-  const elegiveis = state.cotistas.filter(c => cotasDisponiveisVenda(c) > 0);
-  if (!elegiveis.length) { toast('Nenhum cotista tem cotas livres para anunciar.'); return; }
-  let sel = getCotista(preSelId) || elegiveis[0];
+function abrirModalVenda(preSelId) {
+  const elegiveis = investidoresAtivos().filter(i => acoesLivres(i) > 0);
+  if (!elegiveis.length) { toast('Nenhum investidor com ações livres para vender.'); return; }
+  const sel = getInvestidor(preSelId) && acoesLivres(getInvestidor(preSelId)) > 0 ? getInvestidor(preSelId) : elegiveis[0];
   openModal(`
-    <h3>Anunciar cotas à venda</h3>
-    <p class="hint">O anúncio fica visível no Mercado de Cotas para outros cotistas comprarem.</p>
-    <div class="field" style="margin-top:12px;"><label>Vendedor</label>
-      <select id="anuncio-vendedor">${elegiveis.map(c => `<option value="${c.id}" ${c.id === sel.id ? 'selected' : ''}>${c.nome} — ${fmtNum(cotasDisponiveisVenda(c))} cotas livres</option>`).join('')}</select>
+    <h3>Entrar na fila de venda</h3>
+    <p class="hint">O pedido é atendido na próxima janela, ao preço apurado por fórmula. Se houver mais oferta que demanda, o atendimento é rateado.</p>
+    <div class="field" style="margin-top:12px;"><label>Investidor</label>
+      <select id="venda-inv">${elegiveis.map(i => `<option value="${i.id}" ${i.id === sel.id ? 'selected' : ''}>${i.nome} — ${fmtNum(acoesLivres(i))} ações livres</option>`).join('')}</select>
     </div>
-    <div class="field"><label>Quantidade de cotas</label><input type="number" id="anuncio-qtd" min="1" step="1" value="1"></div>
-    <div class="field"><label>Preço por cota (R$)</label><input type="number" id="anuncio-preco" min="0.01" step="0.5" value="${valorCota.toFixed(2)}"></div>
-    <p class="hint" id="anuncio-preview"></p>
+    <div class="field"><label>Quantidade de ações</label><input type="number" id="venda-qtd" min="1" step="1" value="1"></div>
+    <button class="btn ghost sm" id="venda-tudo" style="margin-bottom:12px;">Vender toda a posição</button>
+    <div class="calc-output" id="venda-preview"></div>
     <div class="modal-actions">
-      <button class="btn ghost" id="anuncio-cancelar">Cancelar</button>
-      <button class="btn primary" id="anuncio-confirmar">Anunciar</button>
+      <button class="btn ghost" id="venda-cancelar">Cancelar</button>
+      <button class="btn primary" id="venda-confirmar">Entrar na fila</button>
     </div>
   `, (root) => {
-    const selEl = root.querySelector('#anuncio-vendedor');
-    const qtdEl = root.querySelector('#anuncio-qtd');
-    const precoEl = root.querySelector('#anuncio-preco');
-    const preview = root.querySelector('#anuncio-preview');
+    const selEl = root.querySelector('#venda-inv');
+    const qtdEl = root.querySelector('#venda-qtd');
+    const prev = root.querySelector('#venda-preview');
     const atualiza = () => {
-      const c = getCotista(Number(selEl.value));
-      const livres = cotasDisponiveisVenda(c);
+      const inv = getInvestidor(Number(selEl.value));
+      const livres = acoesLivres(inv);
       qtdEl.max = livres;
-      const qtd = Math.min(Number(qtdEl.value) || 0, livres);
-      const preco = Number(precoEl.value) || 0;
-      const delta = valorCota > 0 ? ((preco - valorCota) / valorCota) * 100 : 0;
-      const rel = Math.abs(delta) < 0.5 ? 'no valor patrimonial' : delta > 0 ? `ágio de ${fmtPct(delta)}` : `deságio de ${fmtPct(Math.abs(delta))}`;
-      preview.textContent = `${c.nome} tem ${fmtNum(livres)} cotas livres · total do anúncio ${fmtBRL0(qtd * preco)} (${rel}).`;
+      const qtd = Math.min(Math.max(1, Number(qtdEl.value) || 0), livres);
+      const v = calcVendaJanela(inv, qtd);
+      prev.innerHTML = `
+        <div class="calc-output-row"><span class="k">Preço da janela</span><span class="v">${fmtBRL(v.preco)}</span></div>
+        <div class="calc-output-row"><span class="k">Valor bruto</span><span class="v">${fmtBRL(v.bruto)}</span></div>
+        <div class="calc-output-row"><span class="k">Custo médio de aquisição</span><span class="v">${fmtBRL(v.custoMedio)}/ação</span></div>
+        <div class="calc-output-row"><span class="k">Ganho tributável</span><span class="v">${fmtBRL(v.ganho)}</span></div>
+        <div class="calc-output-row"><span class="k">IR (${state.config.irGanhoPct}%)</span><span class="v">− ${fmtBRL(v.imposto)}</span></div>
+        <div class="calc-output-row hl"><span class="k">Líquido a receber</span><span class="v">${fmtBRL(v.liquido)}</span></div>`;
     };
     selEl.addEventListener('change', atualiza);
     qtdEl.addEventListener('input', atualiza);
-    precoEl.addEventListener('input', atualiza);
-    atualiza();
-    root.querySelector('#anuncio-cancelar').addEventListener('click', closeModal);
-    root.querySelector('#anuncio-confirmar').addEventListener('click', () => {
-      const ok = anunciarCotas(Number(selEl.value), Number(qtdEl.value) || 0, Number(precoEl.value) || 0);
-      if (ok) closeModal();
+    root.querySelector('#venda-tudo').addEventListener('click', () => {
+      qtdEl.value = acoesLivres(getInvestidor(Number(selEl.value)));
+      atualiza();
     });
+    atualiza();
+    root.querySelector('#venda-cancelar').addEventListener('click', closeModal);
+    root.querySelector('#venda-confirmar').addEventListener('click', () => {
+      if (entrarFilaVenda(Number(selEl.value), Number(qtdEl.value) || 0)) closeModal();
+    });
+  });
+}
+
+function abrirModalInteresse(preSelId) {
+  const preco = precoJanela();
+  const elegiveis = state.investidores.filter(i => maxAcoesPorInvestidor() - i.acoes > 0 && tetoRestanteAno(i) > preco);
+  if (!elegiveis.length) { toast('Nenhum investidor com espaço para comprar mais ações.'); return; }
+  const sel = getInvestidor(preSelId) || elegiveis[0];
+  openModal(`
+    <h3>Registrar interesse de compra</h3>
+    <p class="hint">Na janela, os investidores interessados são atendidos por ordem de chegada, ao preço apurado.</p>
+    <div class="field" style="margin-top:12px;"><label>Investidor</label>
+      <select id="int-inv">${elegiveis.map(i => `<option value="${i.id}" ${i.id === sel.id ? 'selected' : ''}>${i.nome} — ${fmtNum(i.acoes)} ações hoje</option>`).join('')}</select>
+    </div>
+    <div class="field"><label>Quantidade de ações</label><input type="number" id="int-qtd" min="1" step="1" value="10"></div>
+    <p class="hint" id="int-preview"></p>
+    <div class="modal-actions">
+      <button class="btn ghost" id="int-cancelar">Cancelar</button>
+      <button class="btn primary" id="int-confirmar">Registrar</button>
+    </div>
+  `, (root) => {
+    const selEl = root.querySelector('#int-inv');
+    const qtdEl = root.querySelector('#int-qtd');
+    const prev = root.querySelector('#int-preview');
+    const atualiza = () => {
+      const inv = getInvestidor(Number(selEl.value));
+      const qtd = Math.max(0, Number(qtdEl.value) || 0);
+      const teto = tetoRestanteAno(inv);
+      const limite = Math.min(maxAcoesPorInvestidor() - inv.acoes, teto === Infinity ? Infinity : Math.floor(teto / preco));
+      prev.textContent = `${fmtNum(qtd)} ações × ${fmtBRL(preco)} = ${fmtBRL0(qtd * preco)}. Limite deste investidor: ${fmtNum(limite)} ações` +
+        (teto === Infinity ? ' (oferta privada, sem teto anual).' : ` (resta ${fmtBRL0(teto)} no teto anual).`);
+    };
+    selEl.addEventListener('change', atualiza);
+    qtdEl.addEventListener('input', atualiza);
+    atualiza();
+    root.querySelector('#int-cancelar').addEventListener('click', closeModal);
+    root.querySelector('#int-confirmar').addEventListener('click', () => {
+      if (registrarInteresseCompra(Number(selEl.value), Number(qtdEl.value) || 0)) closeModal();
+    });
+  });
+}
+
+/* Wizard: apuração → aprovação formal e lavratura no livro → liquidação */
+function abrirWizardJanela() {
+  const r = simularJanela();
+  openModal(`
+    <h3>Apuração da janela · ${fmtMes(state.mesAtual)}</h3>
+    <p class="hint">Confira o resultado antes de liquidar. Nada é transferido até a aprovação.</p>
+    <div class="calc-output" style="margin-top:12px;">
+      <div class="calc-output-row"><span class="k">Preço apurado</span><span class="v">${fmtBRL(r.preco)}</span></div>
+      <div class="calc-output-row"><span class="k">Oferta (fila de venda)</span><span class="v">${fmtNum(r.oferta)} ações</span></div>
+      <div class="calc-output-row"><span class="k">Demanda de investidores</span><span class="v">${fmtNum(r.demanda)} ações</span></div>
+      <div class="calc-output-row"><span class="k">Recompra pela companhia</span><span class="v">${fmtNum(r.paraTesouraria)} ações</span></div>
+      <div class="calc-output-row"><span class="k">Capacidade do caixa de reserva</span><span class="v">${fmtNum(r.capacidade)} ações</span></div>
+      <div class="calc-output-row hl"><span class="k">Total a negociar</span><span class="v">${fmtNum(r.executado)} ações</span></div>
+    </div>
+    ${r.naoAtendido > 0
+      ? `<p class="hint" style="margin-top:10px; color:var(--gold-bright);">Demanda menor que a oferta: rateio de ${Math.round(r.rateioPct)}% — ${fmtNum(r.naoAtendido)} ações continuam na fila para a próxima janela.</p>`
+      : (r.executado > 0 ? `<p class="hint" style="margin-top:10px;">Todos os pedidos de venda serão atendidos integralmente.</p>` : `<p class="hint" style="margin-top:10px;">Não há pedidos na fila — a janela será apurada sem negócios.</p>`)}
+    <div class="done-when" style="margin-top:12px;"><b>Próximo passo</b>A Diretoria aprova a operação e lavra as transferências no Livro de Registro de Ações Nominativas. O pagamento aos vendedores ocorre em até ${state.config.prazoLiquidacaoDias} dias.</div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="wiz-cancelar">Cancelar</button>
+      <button class="btn primary" id="wiz-aprovar">Aprovar e lavrar ✓</button>
+    </div>
+  `, (root) => {
+    root.querySelector('#wiz-cancelar').addEventListener('click', closeModal);
+    root.querySelector('#wiz-aprovar').addEventListener('click', () => { executarJanela(); closeModal(); });
   });
 }
 
@@ -1875,47 +1756,64 @@ function wireAccordion() {
 }
 
 /* ============================================================
-   PROPOSTA COMERCIAL — CALCULADORAS INTERATIVAS
+   PROPOSTA — SIMULADOR DE RETORNO
    ============================================================ */
-function wirePropostaCalculators() {
-  const func = document.getElementById('calc1-func');
-  const turnover = document.getElementById('calc1-turnover');
-  if (func && turnover) {
-    const atualizaCalc1 = () => {
-      const nFunc = Number(func.value);
-      const turnoverPct = Number(turnover.value);
-      const saidasHoje = nFunc * (turnoverPct / 100);
-      const saidasEquity = saidasHoje * 0.75; // baseado no case 20% -> 15%
-      const reducao = saidasHoje - saidasEquity;
-      const economia = reducao * 5000;
+function wireSimuladorRetorno() {
+  const inicialEl = document.getElementById('sim-inicial');
+  if (!inicialEl) return;
+  const mensalEl = document.getElementById('sim-mensal');
+  const anosEl = document.getElementById('sim-anos');
+  const dripEl = document.getElementById('sim-drip');
 
-      document.getElementById('calc1-func-out').textContent = fmtNum(nFunc);
-      document.getElementById('calc1-turnover-out').textContent = `${turnoverPct}%`;
-      document.getElementById('calc1-out-saidas-hoje').textContent = `${fmtNum(saidasHoje)}/ano`;
-      document.getElementById('calc1-out-saidas-equity').textContent = `${fmtNum(saidasEquity)}/ano`;
-      document.getElementById('calc1-out-economia').textContent = `${fmtBRL0(economia)}/ano`;
-    };
-    func.addEventListener('input', atualizaCalc1);
-    turnover.addEventListener('input', atualizaCalc1);
-    atualizaCalc1();
-  }
+  const atualiza = () => {
+    const cfg = state.config;
+    const inicial = Number(inicialEl.value) || 0;
+    const mensal = Number(mensalEl.value) || 0;
+    const anos = Number(anosEl.value) || 1;
+    const drip = dripEl.checked;
+    const meses = anos * 12;
 
-  const valorSlider = document.getElementById('calc2-valor');
-  if (valorSlider) {
-    const atualizaCalc2 = () => {
-      const valor = Number(valorSlider.value);
-      const pct = Math.min(100, 20 + (valor / 1000) * 80);
-      document.getElementById('calc2-valor-out').textContent = fmtBRL0(valor);
-      document.getElementById('calc2-bar').style.width = `${pct}%`;
-      const tierEl = document.getElementById('calc2-tier');
-      if (pct < 25) tierEl.textContent = 'Engajamento Básico';
-      else if (pct < 50) tierEl.textContent = 'Engajamento Crescente';
-      else if (pct < 75) tierEl.textContent = 'Alto Comprometimento';
-      else tierEl.textContent = 'Mentalidade de Dono';
-    };
-    valorSlider.addEventListener('input', atualizaCalc2);
-    atualizaCalc2();
-  }
+    document.getElementById('sim-inicial-out').textContent = fmtBRL0(inicial);
+    document.getElementById('sim-mensal-out').textContent = fmtBRL0(mensal);
+    document.getElementById('sim-anos-out').textContent = `${anos} ${anos === 1 ? 'ano' : 'anos'}`;
+
+    const base = estadoNoMes(state.mesAtual);
+    let acoes = base.valorAcao > 0 ? inicial / base.valorAcao : 0;
+    let aportado = inicial, dividendosRecebidos = 0, credito = 0;
+    const pontos = [];
+
+    for (let i = 1; i <= meses; i++) {
+      const est = estadoNoMes(state.mesAtual + i);
+      const divTotal = acoes * dividendoPorAcao(cfg.lucroMensal, cfg);
+      if (drip) {
+        credito += divTotal;
+        const novas = credito / est.valorAcao;
+        acoes += novas;
+        credito = 0;
+      } else {
+        dividendosRecebidos += divTotal;
+      }
+      if (mensal > 0) { acoes += mensal / est.valorAcao; aportado += mensal; }
+      pontos.push({ y: acoes * est.valorAcao + dividendosRecebidos, label: `${Math.round(i / 12)}a` });
+    }
+
+    const estFinal = estadoNoMes(state.mesAtual + meses);
+    const posicao = acoes * estFinal.valorAcao;
+    const total = posicao + dividendosRecebidos;
+    const lucro = total - aportado;
+
+    document.getElementById('sim-out-aportado').textContent = fmtBRL0(aportado);
+    document.getElementById('sim-out-posicao').textContent = fmtBRL0(posicao);
+    document.getElementById('sim-out-dividendos').textContent = drip ? 'reinvestidos' : fmtBRL0(dividendosRecebidos);
+    document.getElementById('sim-out-total').textContent = fmtBRL0(total);
+    document.getElementById('sim-out-lucro').textContent = `${lucro >= 0 ? '+' : ''}${fmtBRL0(lucro)}`;
+    document.getElementById('sim-out-pct').textContent = aportado > 0 ? `${lucro >= 0 ? '+' : ''}${fmtPct(lucro / aportado * 100)} sobre o aportado` : '—';
+    document.getElementById('sim-chart').innerHTML = svgLineChart(pontos, { height: 170 });
+  };
+
+  [inicialEl, mensalEl, anosEl].forEach(el => el.addEventListener('input', atualiza));
+  dripEl.addEventListener('change', atualiza);
+  atualiza();
 }
 
 /* ============================================================
@@ -1923,15 +1821,14 @@ function wirePropostaCalculators() {
    ============================================================ */
 function openMaisSheet() {
   const itemsHtml = `<div>
-    <button class="sheet-item" data-go="ciclo"><span class="ic">05</span>Ciclo Mensal</button>
+    <button class="sheet-item" data-go="ciclo"><span class="ic">05</span>Fechamento Mensal</button>
     <button class="sheet-item" data-go="evolucao"><span class="ic">06</span>Evolução &amp; Projeção</button>
-    <button class="sheet-item" data-go="saida"><span class="ic">07</span>Saída &amp; Recompra</button>
-    <button class="sheet-item" data-go="regras"><span class="ic">08</span>Regras do Fundo</button>
+    <button class="sheet-item" data-go="regras"><span class="ic">07</span>Regras do Programa</button>
+    <button class="sheet-item" data-go="comofunciona"><span class="ic">08</span>Como Funciona</button>
     <button class="sheet-item" data-go="implantacao"><span class="ic">09</span>Do Zero ao Lançamento</button>
-    <button class="sheet-item" data-go="config"><span class="ic">10</span>Configuração do Fundo</button>
-    <button class="sheet-item" data-go="fip"><span class="ic">11</span>O Que É um FIP?</button>
-    <button class="sheet-item" data-go="proposta"><span class="ic">12</span>Proposta Comercial</button>
-    <button class="sheet-item" data-go="concorrentes"><span class="ic">13</span>Estudo de Concorrentes</button>
+    <button class="sheet-item" data-go="proposta"><span class="ic">10</span>Proposta ao Investidor</button>
+    <button class="sheet-item" data-go="concorrentes"><span class="ic">11</span>Estudo de Concorrentes</button>
+    <button class="sheet-item" data-go="config"><span class="ic">12</span>Parâmetros</button>
   </div>`;
   openSheet(`<h3>Mais Opções</h3>`, itemsHtml, (root) => {
     root.querySelectorAll('[data-go]').forEach(b => {
@@ -1946,7 +1843,9 @@ function openMaisSheet() {
 }
 
 function wireGlobalEvents() {
-  document.getElementById('bottom-nav').addEventListener('click', (e) => {
+  const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+
+  on('bottom-nav', 'click', (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
     if (btn.dataset.sheet) { openMaisSheet(); return; }
@@ -1957,29 +1856,24 @@ function wireGlobalEvents() {
     }
   });
 
-  document.getElementById('btn-reset-sim').addEventListener('click', resetSim);
+  on('btn-reset-sim', 'click', resetSim);
 
-  document.getElementById('portal-switch').addEventListener('click', () => {
-    openCotistaPicker(state.portalSelId, (id) => { state.portalSelId = id; persist(); renderPortal(); });
-  });
-  document.getElementById('saida-switch').addEventListener('click', () => {
-    openCotistaPicker(state.saidaSelId, (id) => { state.saidaSelId = id; persist(); renderSaida(); });
+  on('portal-switch', 'click', () => {
+    openInvestidorPicker(state.portalSelId, (id) => { state.portalSelId = id; persist(); renderPortal(); });
   });
 
-  document.getElementById('cfg-aplicar').addEventListener('click', () => {
+  on('cfg-aplicar', 'click', () => {
+    const anterior = state.config.totalAcoes;
     state.config = lerConfigDosInputs();
-    // Reserva da Empresa (cotas) — o resto não-distribuído vira Tesouraria do Fundo
-    const naoDistribuido = Math.max(0, state.config.totalCotas - totalDistribuido());
-    let reservaEmp = Number(document.getElementById('cfg-reservaEmpresa').value) || 0;
-    reservaEmp = Math.max(0, Math.min(reservaEmp, naoDistribuido));
-    state.reservaEmpresa = reservaEmp;
-    state.tesourariaFundo = naoDistribuido - reservaEmp;
+    // Se o capital autorizado mudou, o saldo a emitir absorve a diferença
+    const delta = state.config.totalAcoes - anterior;
+    state.acoesDisponiveisEmissao = Math.max(0, state.acoesDisponiveisEmissao + delta);
     persist();
     rebuildEstados();
     renderAll();
-    toast('Configuração aplicada e recalculada.');
+    toast('Parâmetros aplicados e recalculados.');
   });
-  document.getElementById('cfg-padrao').addEventListener('click', () => {
+  on('cfg-padrao', 'click', () => {
     state.config = { ...DEFAULT_CONFIG };
     persist();
     rebuildEstados();
@@ -1987,10 +1881,10 @@ function wireGlobalEvents() {
     toast('Parâmetros padrão restaurados.');
   });
 
-  document.getElementById('btn-novo-cotista').addEventListener('click', abrirModalNovoCotista);
+  on('btn-novo-investidor', 'click', abrirModalNovoInvestidor);
 
   wireAccordion();
-  wirePropostaCalculators();
+  wireSimuladorRetorno();
 }
 
 function init() {

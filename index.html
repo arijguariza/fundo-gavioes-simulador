@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0c0d09">
-<title>Fundo Gaviões · Simulador</title>
+<title>Gaviões Invest · Simulador</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
@@ -19,7 +19,7 @@
 
   <header class="m-header">
     <div class="m-header-row">
-      <div class="m-brand"><span class="mk">Gaviões</span><span class="dot">·</span><span class="mk-sub">Fundo</span></div>
+      <div class="m-brand"><span class="mk">Gaviões</span><span class="dot">·</span><span class="mk-sub">Invest</span></div>
       <button class="m-reset" id="btn-reset-sim" aria-label="Reiniciar simulação">↺</button>
     </div>
     <div class="m-ticker" id="m-ticker"></div>
@@ -27,11 +27,11 @@
 
   <main class="m-content" id="m-content">
 
-    <!-- PORTAL DO FUNCIONÁRIO (HOME) -->
+    <!-- MINHA POSIÇÃO (HOME) -->
     <section class="view" data-view="portal">
       <div class="m-view-head">
-        <span class="eyebrow">Sua Conta no Fundo</span>
-        <h1>Minhas Cotas</h1>
+        <span class="eyebrow">Sua Participação</span>
+        <h1>Minha Posição</h1>
       </div>
       <button class="switch-pill" id="portal-switch">
         <span id="portal-switch-label">Ver como…</span><span class="chev">▾</span>
@@ -39,29 +39,33 @@
       <div id="portal-body"></div>
     </section>
 
-    <!-- VISÃO GERAL DO FUNDO -->
+    <!-- A COMPANHIA -->
     <section class="view hidden" data-view="overview">
       <div class="m-view-head">
-        <span class="eyebrow">Painel do Administrador</span>
-        <h1>Visão Geral do Fundo</h1>
-        <p class="desc">Fotografia do fundo no mês atual — participação na academia, patrimônio, tesouraria e distribuição de cotas.</p>
+        <span class="eyebrow">Painel da Companhia</span>
+        <h1>A Companhia</h1>
+        <p class="desc">A S.A. detém uma participação na unidade e distribui o resultado aos acionistas. Aqui está a fotografia do mês.</p>
       </div>
       <div class="kpi-stack" id="overview-kpis"></div>
       <div class="m-card">
-        <div class="panel-title"><h2>Evolução do Valor da Cota</h2><span class="meta" id="overview-chart-meta"></span></div>
+        <div class="panel-title"><h2>Como o valor da ação é formado</h2><span class="meta">este mês</span></div>
+        <div id="overview-valuation"></div>
+      </div>
+      <div class="m-card">
+        <div class="panel-title"><h2>Evolução do Valor da Ação</h2><span class="meta">24 meses</span></div>
         <div id="overview-chart"></div>
       </div>
       <div class="m-card">
-        <div class="panel-title"><h2>Propriedade do Fundo</h2></div>
+        <div class="panel-title"><h2>Onde estão as ações</h2></div>
         <div id="overview-donut"></div>
       </div>
       <div class="m-card">
-        <div class="panel-title"><h2>Tesouraria &amp; Liquidez</h2><span class="meta">recompras</span></div>
-        <div id="overview-tesouraria"></div>
+        <div class="panel-title"><h2>Captação por Onda</h2><span class="meta">privada x crowdfunding</span></div>
+        <div id="overview-ondas"></div>
       </div>
       <div class="m-card">
-        <div class="panel-title"><h2>Cotas por Área</h2><span class="meta">toque para filtrar</span></div>
-        <div id="overview-areas"></div>
+        <div class="panel-title"><h2>Reserva &amp; Liquidez</h2><span class="meta">recompra</span></div>
+        <div id="overview-reserva"></div>
       </div>
       <div class="m-card" style="padding-bottom:6px;">
         <div class="panel-title"><h2>Atividade Recente</h2></div>
@@ -69,26 +73,26 @@
       </div>
     </section>
 
-    <!-- CICLO MENSAL -->
+    <!-- FECHAMENTO MENSAL -->
     <section class="view hidden" data-view="ciclo">
       <div class="m-view-head">
         <span class="eyebrow">Fluxo Operacional</span>
-        <h1>Ciclo Mensal</h1>
-        <p class="desc">Líderes distribuem cotas, o comitê aprova, o comunicado é gerado e os dividendos são calculados.</p>
+        <h1>Fechamento Mensal</h1>
+        <p class="desc">Apura o resultado da unidade, gera o informe aos acionistas e distribui os dividendos do mês.</p>
       </div>
       <div class="stepper-m" id="ciclo-stepper"></div>
       <div id="ciclo-body"></div>
     </section>
 
-    <!-- COTISTAS -->
-    <section class="view hidden" data-view="cotistas">
+    <!-- INVESTIDORES -->
+    <section class="view hidden" data-view="investidores">
       <div class="m-view-head">
-        <span class="eyebrow">Cadastro de Cotistas</span>
-        <h1>Cotistas</h1>
-        <button class="btn primary full" id="btn-novo-cotista">+ Novo Cotista</button>
+        <span class="eyebrow">Base de Acionistas</span>
+        <h1>Investidores</h1>
+        <button class="btn primary full" id="btn-novo-investidor">+ Novo Investidor</button>
       </div>
-      <div class="unit-filter" id="cotistas-filter"></div>
-      <div id="cotistas-list"></div>
+      <div id="investidores-filter"></div>
+      <div id="investidores-list"></div>
     </section>
 
     <!-- EVOLUÇÃO -->
@@ -96,7 +100,7 @@
       <div class="m-view-head">
         <span class="eyebrow">Projeção</span>
         <h1>Evolução · 10 Anos</h1>
-        <p class="desc">Valuation, participação do fundo e valor da cota, ano a ano, a partir dos parâmetros configurados.</p>
+        <p class="desc">Valuation da unidade, patrimônio da companhia e valor da ação, ano a ano, a partir dos parâmetros configurados.</p>
       </div>
       <div class="m-card">
         <div id="evolucao-chart"></div>
@@ -104,93 +108,74 @@
       <div id="evolucao-list"></div>
     </section>
 
-    <!-- SAÍDA & RECOMPRA -->
-    <section class="view hidden" data-view="saida">
+    <!-- JANELA DE LIQUIDEZ -->
+    <section class="view hidden" data-view="janela">
       <div class="m-view-head">
-        <span class="eyebrow">Simulador de Cenário</span>
-        <h1>Saída &amp; Recompra</h1>
-        <p class="desc">Simule a saída de um cotista: o fundo recompra suas cotas pelo valor de mercado, sem regra de carência.</p>
+        <span class="eyebrow">Liquidez</span>
+        <h1>Janela de Liquidez</h1>
+        <p class="desc">Evento periódico com preço único apurado por fórmula. Quem quer vender entra na fila; quem quer comprar registra interesse. Não há negociação contínua nem formação de preço.</p>
       </div>
-      <button class="switch-pill" id="saida-switch">
-        <span id="saida-switch-label">Selecionar cotista…</span><span class="chev">▾</span>
-      </button>
-      <div id="saida-body"></div>
+      <div id="janela-resumo"></div>
+      <div class="group-label" style="margin-top:20px;"><span>Fila de Venda</span></div>
+      <div id="janela-fila-venda"></div>
+      <div class="group-label" style="margin-top:20px;"><span>Interesse de Compra</span></div>
+      <div id="janela-fila-compra"></div>
+      <div class="group-label" style="margin-top:20px;"><span>Janelas Anteriores</span></div>
+      <div id="janela-historico"></div>
+      <p class="hint" style="text-align:center; margin:18px 6px 4px; line-height:1.6;">Simulação com dados fictícios. Não constitui oferta pública de valores mobiliários nem recomendação de investimento.</p>
     </section>
 
-    <!-- MERCADO DE COTAS -->
-    <section class="view hidden" data-view="mercado">
-      <div class="m-view-head">
-        <span class="eyebrow">Liquidez Interna</span>
-        <h1>Mercado de Cotas</h1>
-        <p class="desc">Cotistas anunciam cotas à venda e outros cotistas ativos compram, ao preço negociado. A referência é o valor patrimonial da cota — anúncios podem ter ágio ou deságio.</p>
-      </div>
-      <div id="mercado-resumo"></div>
-      <div class="group-label" style="margin-top:20px;"><span>Anúncios Ativos</span></div>
-      <div id="mercado-list"></div>
-    </section>
-
-    <!-- REGRAS DO FUNDO -->
+    <!-- REGRAS DO PROGRAMA -->
     <section class="view hidden" data-view="regras">
       <div class="m-view-head">
         <span class="eyebrow">Governança</span>
-        <h1>Regras do Fundo</h1>
-        <p class="desc">Como as cotas nascem, circulam e são recompradas — de quem é cada cota, quem tem prioridade de compra e o que acontece quando alguém sai.</p>
+        <h1>Regras do Programa</h1>
+        <p class="desc">Como as ações nascem, circulam e são recompradas — de quem é cada ação, como o preço é apurado e o que acontece quando alguém quer sair.</p>
       </div>
       <div id="regras-body"></div>
     </section>
 
-    <!-- CONFIGURAÇÃO -->
+    <!-- PARÂMETROS -->
     <section class="view hidden" data-view="config">
       <div class="m-view-head">
         <span class="eyebrow">Parâmetros</span>
-        <h1>Configuração do Fundo</h1>
+        <h1>Parâmetros do Modelo</h1>
         <p class="desc">Esses números definem o valuation, a participação e os custos. Alterar recalcula tudo.</p>
       </div>
       <div class="m-card">
-        <h3>Valuation da Academia</h3>
+        <h3>A Unidade</h3>
+        <div class="field"><label>Nome da unidade</label><input type="text" id="cfg-nomeUnidade"></div>
         <div class="field"><label>Lucro mensal projetado (R$)</label><input type="number" id="cfg-lucroMensal" step="1000"></div>
         <div class="field"><label>Múltiplo de mercado (x)</label><input type="number" id="cfg-multiplo" step="0.5"></div>
-        <div class="field"><label>Custo de abertura (R$, informativo)</label><input type="number" id="cfg-custoAbertura" step="50000"></div>
-        <div class="field"><label>Crescimento anual da academia (%)</label><input type="number" id="cfg-crescimento" step="0.5"></div>
-        <p class="hint" id="cfg-valuation-out"></p>
+        <div class="field"><label>Crescimento anual da unidade (%)</label><input type="number" id="cfg-crescimento" step="0.5"></div>
       </div>
       <div class="m-card">
-        <h3>Estrutura de Cotas</h3>
-        <div class="field"><label>Participação do fundo (%)</label><input type="number" id="cfg-participacao" step="1"></div>
-        <div class="field"><label>Total de cotas emitidas</label><input type="number" id="cfg-totalCotas" step="100"></div>
-        <p class="hint" id="cfg-cota-out"></p>
+        <h3>A Companhia</h3>
+        <div class="field"><label>Participação na unidade (%)</label><input type="number" id="cfg-participacao" step="1"></div>
+        <div class="field"><label>Capital autorizado (total de ações)</label><input type="number" id="cfg-totalAcoes" step="500"></div>
+        <div class="field"><label>Contabilidade (R$/mês)</label><input type="number" id="cfg-contabilidade" step="100"></div>
+        <div class="field"><label>Jurídico e societário (R$/ano)</label><input type="number" id="cfg-juridico" step="500"></div>
+        <div id="cfg-resumo" style="margin-top:12px;"></div>
       </div>
       <div class="m-card">
-        <h3>Custos Anuais</h3>
-        <div class="field"><label>Taxa de administração (% a.a.)</label><input type="number" id="cfg-taxaAdm" step="0.1"></div>
-        <div class="field"><label>Auditoria independente (R$/ano)</label><input type="number" id="cfg-auditoria" step="500"></div>
-        <p class="hint" id="cfg-custo-out"></p>
+        <h3>Captação</h3>
+        <div class="field"><label>Teto anual por investidor de varejo (R$)</label><input type="number" id="cfg-tetoCrowd" step="1000"></div>
+        <div class="field"><label>Concentração máxima por investidor (% da companhia)</label><input type="number" id="cfg-concentracao" step="1" min="1" max="100"></div>
+        <p class="hint">O teto anual vale para quem entra pelo crowdfunding. Na oferta privada não há teto. O limite de concentração impede que um investidor acumule participação demais.</p>
       </div>
       <div class="m-card">
-        <h3>Regras de Distribuição</h3>
-        <div class="field"><label>Cotas de bonificação por líder / mês</label><input type="number" id="cfg-cotasLider" step="1"></div>
-        <div class="field"><label>Limite de compra por funcionário / mês</label><input type="number" id="cfg-limiteCompra" step="1"></div>
-        <div class="field"><label>IRRF sobre ganho de capital (%)</label><input type="number" id="cfg-irrf" step="1"></div>
-      </div>
-      <div class="m-card">
-        <h3>Proteções do Fundo</h3>
-        <div class="field"><label>Caixa de recompra (% do patrimônio)</label><input type="number" id="cfg-reserva" step="1" min="0" max="50"></div>
-        <div class="field"><label>Concentração máxima por cotista (% do fundo)</label><input type="number" id="cfg-concentracao" step="1" min="1" max="100"></div>
-        <div class="field"><label>Prazo de pagamento da recompra (dias)</label><input type="number" id="cfg-prazoPagamento" step="15" min="0" max="180"></div>
-        <p class="hint">O caixa garante dinheiro para recomprar cotas de quem sai. O limite de concentração impede que uma pessoa acumule cotas demais. O prazo é o tempo máximo para pagar quem se desliga.</p>
-      </div>
-      <div class="m-card">
-        <h3>Posse das Cotas</h3>
-        <div class="field"><label>Reserva da Empresa (cotas p/ bonificar)</label><input type="number" id="cfg-reservaEmpresa" step="10" min="0"></div>
-        <p class="hint" id="cfg-pools-out"></p>
-        <p class="hint">O restante das cotas não-distribuídas vira Tesouraria do Fundo, usada para recomprar quem sai.</p>
+        <h3>Liquidez e Impostos</h3>
+        <div class="field"><label>Periodicidade da janela (meses)</label><input type="number" id="cfg-janelaMeses" step="1" min="1" max="12"></div>
+        <div class="field"><label>Caixa de reserva para recompra (% do patrimônio)</label><input type="number" id="cfg-reserva" step="1" min="0" max="50"></div>
+        <div class="field"><label>Prazo de liquidação (dias)</label><input type="number" id="cfg-prazoLiquidacao" step="15" min="0" max="180"></div>
+        <div class="field"><label>IR sobre ganho de capital (%)</label><input type="number" id="cfg-irGanho" step="1"></div>
       </div>
       <button class="btn primary full" id="cfg-aplicar">Aplicar e Recalcular</button>
       <button class="btn ghost full" id="cfg-padrao" style="margin-top:10px;">Restaurar Padrões</button>
     </section>
 
-    <!-- O QUE É UM FIP -->
-    <section class="view hidden" data-view="fip">
+    <!-- COMO FUNCIONA -->
+    <section class="view hidden" data-view="comofunciona">
       <div class="m-view-head">
         <span class="eyebrow">Para Qualquer Pessoa Entender</span>
         <h1>O Que É um FIP?</h1>
@@ -1049,15 +1034,15 @@
     </button>
     <button data-view="overview">
       <svg viewBox="0 0 24 24"><path d="M4 10 12 4l8 6"/><path d="M5 10v9h14v-9"/><path d="M10 19v-5h4v5"/></svg>
-      <span>Fundo</span>
+      <span>Companhia</span>
     </button>
-    <button data-view="mercado">
-      <svg viewBox="0 0 24 24"><path d="M4 18 9 12l4 3 7-8"/><path d="M20 11V7h-4"/></svg>
-      <span>Mercado</span>
+    <button data-view="janela">
+      <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16"/><path d="M8 3v4"/><path d="M16 3v4"/><path d="M9 15h6"/></svg>
+      <span>Janela</span>
     </button>
-    <button data-view="cotistas">
+    <button data-view="investidores">
       <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 19c.5-3.5 3-5.5 6-5.5s5.5 2 6 5.5"/><circle cx="17" cy="9" r="2.2"/><path d="M16 13.3c2.2.3 3.7 1.9 4 4.7"/></svg>
-      <span>Cotistas</span>
+      <span>Investidores</span>
     </button>
     <button id="btn-mais" data-sheet="true">
       <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
