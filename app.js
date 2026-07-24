@@ -1742,7 +1742,7 @@ function abrirWizardJanela() {
 }
 
 /* ============================================================
-   FIP — ACCORDION
+   ACCORDIONS (páginas educativas)
    ============================================================ */
 function wireAccordion() {
   document.querySelectorAll('.accordion .acc-head').forEach(btn => {
