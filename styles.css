@@ -706,3 +706,87 @@ label.drip-toggle{
   flex:0 0 auto; width:34px; height:34px; border-radius:50%;
   background-size:cover; background-position:center; border:1px solid var(--gold-line);
 }
+
+/* ============================================================
+   RESPONSIVO — barra lateral e layout amplo no desktop
+   (mobile permanece exatamente como está)
+   ============================================================ */
+
+/* Itens extras da nav e divisor só existem no desktop */
+.nav-divider{ display:none; }
+.bottom-nav .nav-more{ display:none; }
+
+@media (min-width: 860px){
+  /* App vira grid: header no topo, barra lateral à esquerda, conteúdo à direita */
+  .app-m{
+    display:grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "header header"
+      "nav    main";
+    max-width: 1200px;
+    height:100vh; height:100dvh;
+  }
+  .m-header{ grid-area: header; }
+  .m-header-row{ padding:14px 24px 8px; }
+  .m-brand .mk{ font-size:20px; }
+  .m-ticker{ padding:0 24px 12px; }
+
+  /* Barra inferior → barra lateral vertical */
+  .bottom-nav{
+    grid-area: nav;
+    position: relative; left:auto; right:auto; bottom:auto;
+    max-width:none; margin:0;
+    flex-direction: column; justify-content:flex-start; gap:3px;
+    border-top:none; border-right:1px solid var(--line);
+    padding: 16px 12px calc(20px + var(--safe-bottom));
+    overflow-y:auto; -webkit-overflow-scrolling:touch;
+  }
+  .bottom-nav::-webkit-scrollbar{ width:0; }
+  .bottom-nav button{
+    flex:0 0 auto; flex-direction: row; justify-content:flex-start; align-items:center;
+    gap:12px; width:100%; padding:11px 14px; font-size:14px; border-radius:10px;
+    transition:background .15s, color .15s;
+  }
+  .bottom-nav button svg{ width:20px; height:20px; }
+  .bottom-nav button:hover{ background:var(--panel-2); color:var(--ink); }
+  .bottom-nav button.active{ background:var(--gold-soft); color:var(--gold-bright); }
+  .bottom-nav button.active:hover{ background:var(--gold-soft); color:var(--gold-bright); }
+  #btn-mais{ display:none; }  /* no desktop tudo já está na barra */
+
+  .nav-divider{
+    display:block; font-family:var(--mono); font-size:9px; letter-spacing:1.4px;
+    text-transform:uppercase; color:var(--ink-faint);
+    padding:16px 16px 6px; margin-top:8px; border-top:1px solid var(--line-soft);
+  }
+  .bottom-nav .nav-more{ display:flex; padding:9px 14px; font-size:12px; color:var(--ink-dim); }
+  .bottom-nav .nav-more .ic{ flex:0 0 auto; font-family:var(--mono); font-size:10px; color:var(--ink-faint); width:20px; text-align:left; }
+  .bottom-nav .nav-more span:last-child{ flex:1; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bottom-nav .nav-more.active .ic{ color:var(--gold-bright); }
+  .bottom-nav button span:last-child{ text-align:left; }
+
+  /* Conteúdo usa a largura, com coluna de leitura confortável e centralizada */
+  .m-content{
+    grid-area: main;
+    padding: 28px 32px 48px;
+  }
+  .m-content > .view{ max-width: 900px; margin:0 auto; }
+
+  /* Grids ganham colunas na largura extra */
+  .kpi-stack, .stat-grid{ grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .stat-proof-grid{ grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+
+  /* Cabeçalhos de view um pouco maiores no desktop */
+  .m-view-head h1{ font-size:28px; }
+  .pitch-hero h1, .verdict-hero h1{ font-size:30px; }
+
+  /* Folha "Mais" e modais centralizados como cartão */
+  .sheet-overlay{ align-items:center; }
+  .sheet{ border-radius:20px; border-bottom:1px solid var(--line); max-width:440px; max-height:82vh; }
+}
+
+@media (min-width: 1320px){
+  .app-m{ max-width: 1360px; grid-template-columns: 250px minmax(0, 1fr); }
+  .m-content > .view{ max-width: 980px; }
+}
