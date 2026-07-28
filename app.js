@@ -586,6 +586,9 @@ function renderProposta() {
   set('prop-ex-acoes', `≈ ${fmtNum(acoes5k)} ações`);
   set('prop-ex-mes', `≈ ${fmtBRL0(acoes5k * divAcao)}`);
   set('prop-ex-ano', `≈ ${fmtBRL0(acoes5k * divAcao * 12)}`);
+  // O simulador de retorno usa o mesmo motor — recalcula junto para a página
+  // inteira refletir a config e o mês atuais, não só os números fixos acima.
+  if (typeof wireSimuladorRetorno.atualiza === 'function') wireSimuladorRetorno.atualiza();
 }
 
 function renderNav() {
@@ -918,8 +921,8 @@ function lerConfigDosInputs() {
     crescimento: num('cfg-crescimento', state.config.crescimento),
     participacaoPct: num('cfg-participacao', state.config.participacaoPct),
     totalAcoes: Math.max(1, num('cfg-totalAcoes', state.config.totalAcoes)),
-    contabilidadeMensal: num('cfg-contabilidade', state.config.contabilidadeMensal),
-    juridicoAnual: num('cfg-juridico', state.config.juridicoAnual),
+    contabilidadeMensal: Math.max(0, num('cfg-contabilidade', state.config.contabilidadeMensal)),
+    juridicoAnual: Math.max(0, num('cfg-juridico', state.config.juridicoAnual)),
     irGanhoPct: num('cfg-irGanho', state.config.irGanhoPct),
     reservaPct: num('cfg-reserva', state.config.reservaPct),
     limiteConcentracaoPct: num('cfg-concentracao', state.config.limiteConcentracaoPct),
@@ -1053,8 +1056,9 @@ function abrirModalNovoInvestidor() {
       const id = state.nextId++;
       // Gênero a partir do primeiro nome digitado (para a foto casar com o nome);
       // se o nome não estiver na base, cai no padrão determinístico por id.
-      const primeiroNome = nome.split(' ')[0].toLowerCase();
-      const idxNome = NOMES_BASE.findIndex(n => n.toLowerCase() === primeiroNome);
+      const semAcento = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+      const primeiroNome = semAcento(nome.split(' ')[0]);
+      const idxNome = NOMES_BASE.findIndex(n => semAcento(n) === primeiroNome);
       const genero = idxNome >= 0 ? GENEROS_BASE[idxNome] : generoInvestidor(id);
       state.investidores.push({
         id, nome, genero, origem, mesEntrada: state.mesAtual,
@@ -1313,9 +1317,10 @@ function registrarInteresseCompra(investidorId, acoes) {
     tetoRestanteAno(inv) === Infinity ? Infinity : Math.floor(tetoRestanteAno(inv) / precoJanela()) - jaPedido
   );
   if (limite <= 0) {
-    toast(tetoRestanteAno(inv) <= 0
-      ? `${inv.nome} atingiu o teto anual de ${fmtBRL0(state.config.tetoAporteAnualCrowd)}.`
-      : `${inv.nome} atingiu o teto de concentração (máx. ${fmtNum(maxAcoesPorInvestidor())} ações).`);
+    const porConcentracao = maxAcoesPorInvestidor() - inv.acoes - jaPedido;
+    toast(porConcentracao > 0
+      ? `${inv.nome} atingiu o teto anual de ${fmtBRL0(state.config.tetoAporteAnualCrowd)} (contando pedidos já na fila).`
+      : `${inv.nome} atingiu o teto de concentração (máx. ${fmtNum(maxAcoesPorInvestidor())} ações, contando pedidos já na fila).`);
     return false;
   }
   if (acoes > limite) {
@@ -1729,8 +1734,12 @@ function abrirModalInteresse(preSelId) {
       const inv = getInvestidor(Number(selEl.value));
       const qtd = Math.max(0, Number(qtdEl.value) || 0);
       const teto = tetoRestanteAno(inv);
-      const limite = Math.min(maxAcoesPorInvestidor() - inv.acoes, teto === Infinity ? Infinity : Math.floor(teto / preco));
+      // Mesmo cálculo do registrarInteresseCompra: pedidos já na fila contam
+      // contra os tetos, senão o preview promete um limite que o registro nega.
+      const jaPedido = pedidosCompraAtivos().filter(p => p.investidorId === inv.id).reduce((s, p) => s + p.acoes, 0);
+      const limite = Math.max(0, Math.min(maxAcoesPorInvestidor() - inv.acoes - jaPedido, teto === Infinity ? Infinity : Math.floor(teto / preco) - jaPedido));
       prev.textContent = `${fmtNum(qtd)} ações × ${fmtBRL(preco)} = ${fmtBRL0(qtd * preco)}. Limite deste investidor: ${fmtNum(limite)} ações` +
+        (jaPedido > 0 ? ` (já há ${fmtNum(jaPedido)} na fila)` : '') +
         (teto === Infinity ? ' (oferta privada, sem teto anual).' : ` (resta ${fmtBRL0(teto)} no teto anual).`);
     };
     selEl.addEventListener('change', atualiza);
@@ -1843,6 +1852,7 @@ function wireSimuladorRetorno() {
 
   [inicialEl, mensalEl, anosEl].forEach(el => el.addEventListener('input', atualiza));
   dripEl.addEventListener('change', atualiza);
+  wireSimuladorRetorno.atualiza = atualiza; // renderProposta reusa após mudar config/mês
   atualiza();
 }
 
@@ -1901,6 +1911,13 @@ function wireGlobalEvents() {
     if (novaConfig.totalAcoes < minimoAutorizado) {
       renderConfig(); // restaura o valor anterior no input
       toast(`Capital autorizado não pode ser menor que as ${fmtNum(minimoAutorizado)} ações já emitidas.`);
+      return;
+    }
+    // Lucro, múltiplo e participação precisam ser positivos, senão o valuation
+    // zera e o valor da ação fica negativo, corrompendo todos os cálculos.
+    if (novaConfig.lucroMensal <= 0 || novaConfig.multiplo <= 0 || novaConfig.participacaoPct <= 0) {
+      renderConfig(); // restaura os valores anteriores nos inputs
+      toast('Lucro mensal, múltiplo e participação precisam ser maiores que zero.');
       return;
     }
     state.config = novaConfig;

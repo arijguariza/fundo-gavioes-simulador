@@ -545,19 +545,6 @@ label.drip-toggle{
 .drip-toggle .txt strong{color:var(--ink); font-size:12.5px;}
 
 /* ===== Caminho de Implantação ===== */
-.verdict-hero{
-  background:linear-gradient(155deg, rgba(193,80,44,.16), var(--panel)); border:1px solid rgba(193,80,44,.4);
-  border-radius:var(--r-lg); padding:22px 20px; margin-bottom:16px;
-}
-.verdict-hero .eyebrow{font-family:var(--mono); font-size:10.5px; letter-spacing:2px; text-transform:uppercase; color:var(--rust); display:block; margin-bottom:10px;}
-.verdict-hero h1{font-size:23px; line-height:1.22; color:var(--ink);}
-.verdict-hero p{font-size:13.5px; color:var(--ink-dim); line-height:1.62; margin-top:12px;}
-
-.premissa{border-bottom:1px solid var(--line-soft); padding:12px 0;}
-.premissa:last-child{border-bottom:none;}
-.premissa .top{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:5px;}
-.premissa .pq{font-size:12.5px; color:var(--ink); font-weight:600; line-height:1.4; flex:1;}
-.premissa .real{font-size:11.5px; color:var(--ink-dim); line-height:1.55;}
 .vbadge{
   flex:0 0 auto; font-family:var(--mono); font-size:8.5px; letter-spacing:.4px; text-transform:uppercase;
   padding:4px 8px; border-radius:20px; white-space:nowrap;
@@ -779,11 +766,14 @@ label.drip-toggle{
 
   /* Cabeçalhos de view um pouco maiores no desktop */
   .m-view-head h1{ font-size:28px; }
-  .pitch-hero h1, .verdict-hero h1{ font-size:30px; }
+  .pitch-hero h1{ font-size:30px; }
 
   /* Folha "Mais" e modais centralizados como cartão */
   .sheet-overlay{ align-items:center; }
   .sheet{ border-radius:20px; border-bottom:1px solid var(--line); max-width:440px; max-height:82vh; }
+
+  /* Toast: sem bottom-nav no desktop, ancora no canto inferior direito */
+  .toast{ left:auto; right:24px; bottom:calc(24px + var(--safe-bottom)); margin:0; max-width:420px; }
 }
 
 @media (min-width: 1320px){
